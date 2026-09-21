@@ -1,0 +1,15 @@
+import Link from "next/link";
+import LoginPanel from "./panel";
+
+export default function LoginPage() {
+  return (
+    <main className="auth-wrap">
+      <div className="card auth-card">
+        <Link className="brand" href="/"><span className="logo">F</span><span>Fiskalni Inbox</span></Link>
+        <h1>Prijava</h1>
+        <p className="muted">Prijavite se korisničkim imenom i lozinkom ili Google nalogom.</p>
+        <LoginPanel />
+      </div>
+    </main>
+  );
+}
