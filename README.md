@@ -96,3 +96,4 @@ Never connect the public `master / master` demo account to production data.
 3. Add accountant invitation email flow.
 4. Add receipt image/PDF archival if legally/business-required.
 5. Add audit log and deletion/archive retention rules.
+Vercel deploy trigger
