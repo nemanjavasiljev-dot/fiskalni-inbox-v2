@@ -12,7 +12,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   const { data:memberships } = await supabase
     .from("organization_members")
-    .select("organization_id,role,organizations(id,name,pib,plan,status)")
+    .select("organization_id,role,organizations(id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status)")
     .eq("user_id",user.id);
 
   const params = await searchParams;
@@ -34,7 +34,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     const [{data:organizations},{data:allMembers},{data:allProfiles},{data:allReceipts}] = await Promise.all([
       supabase.from("organizations").select("*").order("created_at",{ascending:false}),
       supabase.from("organization_members").select("organization_id,user_id,role"),
-      supabase.from("profiles").select("user_id,username,full_name,global_role,created_at"),
+      supabase.from("profiles").select("user_id,username,full_name,auth_email,global_role,created_at"),
       supabase.from("receipts").select("id,organization_id,created_at")
     ]);
     master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[]};
