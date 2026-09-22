@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BriefcaseBusiness, Download, FileText, LayoutDashboard, Settings, Users } from "lucide-react";
+import { Bell, BriefcaseBusiness, CreditCard, Download, FileText, LayoutDashboard, Settings, Users } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 export default function AccountantDesktopMenu({ isAdmin = false }: { isAdmin?: boolean }) {
@@ -9,6 +9,7 @@ export default function AccountantDesktopMenu({ isAdmin = false }: { isAdmin?: b
     { href: "/app", label: "Pregled", icon: LayoutDashboard, active: pathname === "/app" },
     { href: "/app#clients", label: "Moji klijenti", icon: BriefcaseBusiness, active: false },
     { href: "/app/billing", label: "Moji racuni", icon: FileText, active: pathname === "/app/billing" },
+    { href: "/app/subscription", label: "Pretplata", icon: CreditCard, active: pathname === "/app/subscription" },
     { href: "/app/accountant/settings?tab=notifications", label: "Notifikacije", icon: Bell, active: pathname.includes("/accountant/settings") },
     ...(isAdmin ? [{ href: "/app/accountant/settings?tab=staff", label: "Moji zaposleni", icon: Users, active: false }] : []),
     { href: "/app/accountant/settings?tab=profile", label: "Podesavanja", icon: Settings, active: false },

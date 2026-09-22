@@ -18,7 +18,7 @@ export async function sendBillingInvoiceEmail(opts:{to:string;organizationName:s
   return sendEmail({
     to:opts.to,
     subject:`FiscalBox predracun ${opts.invoiceNumber} · ${opts.organizationName}`,
-    html:`<p>Postovani,</p><p>za firmu <strong>${escapeHtml(opts.organizationName)}</strong> kreiran je FiscalBox predracun za paket <strong>${escapeHtml(opts.plan.toUpperCase())}</strong>.</p><p>Ukupan iznos sa PDV: <strong>${new Intl.NumberFormat('sr-RS',{style:'currency',currency:'RSD'}).format(opts.totalAmount)}</strong>.</p><p>Predracun je u PDF prilogu.${opts.billingUrl?` Arhivu mozete otvoriti i u <a href="${escapeHtml(opts.billingUrl)}">FiscalBox → Moji racuni</a>.`:''}</p><p style="font-size:12px;color:#68736e">Trenutno predracun izdaje demo firma FiscalBox; produkcioni podaci izdavaoca ce biti zamenjeni pre komercijalnog pustanja.</p>`,
+    html:`<p>Postovani,</p><p>za firmu <strong>${escapeHtml(opts.organizationName)}</strong> kreiran je FiscalBox predracun za paket <strong>${escapeHtml(opts.plan.toUpperCase())}</strong>.</p><p>Ukupan iznos sa PDV: <strong>${new Intl.NumberFormat('sr-RS',{style:'currency',currency:'RSD'}).format(opts.totalAmount)}</strong>.</p><p>Predracun je u PDF prilogu.${opts.billingUrl?` Arhivu mozete otvoriti i u <a href="${escapeHtml(opts.billingUrl)}">FiscalBox → Moji racuni</a>.`:''}</p><p style="font-size:12px;color:#68736e">Dokument je dostupan i u vašoj FiscalBox arhivi. Za pitanja o naplati odgovorite na ovaj email.</p>`,
     attachments:[{filename:`${opts.invoiceNumber}.pdf`,content:opts.pdf.toString('base64')}]
   });
 }

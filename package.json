@@ -1,12 +1,13 @@
 {
   "name": "fiscalbox-app",
-  "version": "4.6.0",
+  "version": "5.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:apr-smoke": "node tests/apr-company-search-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

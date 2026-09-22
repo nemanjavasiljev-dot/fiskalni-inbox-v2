@@ -16,7 +16,7 @@ export async function POST(request:Request){
   if(employeeMembership?.role!=='employee')return NextResponse.json({error:'Izabrani korisnik nije zaposleni ove agencije.'},{status:400});
   const {data:old}=await admin.from('accountant_client_assignments').select('client_organization_id').eq('accounting_organization_id',officeId).eq('employee_user_id',employeeId);
   const oldIds=(old||[]).map((x:any)=>String(x.client_organization_id));
-  const removeIds=oldIds.filter(id=>!clients.includes(id));
+  const removeIds:string[]=oldIds.filter((id:string)=>!clients.includes(id));
   if(removeIds.length){
     await admin.from('accountant_client_assignments').delete().eq('accounting_organization_id',officeId).eq('employee_user_id',employeeId).in('client_organization_id',removeIds);
     for(const id of removeIds)await admin.from('organization_members').delete().eq('organization_id',id).eq('user_id',employeeId).eq('role','accountant');

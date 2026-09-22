@@ -3,8 +3,8 @@
 import jsQR from "jsqr";
 import { useEffect, useRef, useState } from "react";
 
-export default function QrScanner({ organizationId, onDone, demoMode = false }:{
-  organizationId?:string; onDone:(result?:any)=>void; demoMode?:boolean;
+export default function QrScanner({ organizationId, onDone }:{
+  organizationId?:string; onDone:(result?:any)=>void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,19 +67,11 @@ export default function QrScanner({ organizationId, onDone, demoMode = false }:{
     setSaving(true);
     setDetected(qr);
     streamRef.current?.getTracks().forEach(t=>t.stop());
-
-    if (demoMode) {
-      setMessage("QR je očitan i demo račun je dodat na listu.");
-      setTimeout(()=>onDone({demo:true,qr}),500);
-      return;
-    }
-
     if (!organizationId) {
       setMessage("Prvo povežite korisnika sa firmom.");
       setSaving(false);
       return;
     }
-
     setMessage("Proveravam, kategorizujem i čuvam račun…");
     try {
       const r = await fetch("/api/receipts/scan",{
@@ -103,10 +95,8 @@ export default function QrScanner({ organizationId, onDone, demoMode = false }:{
       <div className="qr-frame" aria-hidden="true"><span/><span/><span/><span/></div>
       <div className="camera-msg">{message}</div>
     </div>
-
     {detected && <div className="qr-detected"><b>Očitan QR</b><div className="mono">{detected}</div></div>}
-
     <div className="field"><label>Ručni QR link</label><input className="input mono" value={manual} onChange={e=>setManual(e.target.value)} placeholder="https://..." /></div>
-    <button className="btn btn-primary" style={{width:"100%",marginTop:10}} disabled={!manual||saving} onClick={()=>save(manual)}>{demoMode ? "Očitaj link" : "Proveri i sačuvaj"}</button>
+    <button className="btn btn-primary" style={{width:"100%",marginTop:10}} disabled={!manual||saving} onClick={()=>save(manual)}>Proveri i sačuvaj</button>
   </>;
 }

@@ -1,39 +1,10 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createPlanProforma } from "@/lib/billing";
-
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 export async function POST(request:Request){
-  const supabase=await createClient();
-  const {data:{user}}=await supabase.auth.getUser();
-  if(!user)return NextResponse.json({error:"Niste prijavljeni."},{status:401});
-  const body=await request.json();
-  const name=String(body.name||"").trim();
-  if(!name)return NextResponse.json({error:"Naziv firme je obavezan."},{status:400});
-  const selected=["trial","basic","premium"].includes(body.plan)?body.plan:"trial";
-  const {data:org,error}=await supabase.from("organizations").insert({
-    name,
-    pib:String(body.pib||"").trim()||null,
-    registration_number:String(body.registration_number||"").trim()||null,
-    legal_form:String(body.legal_form||"").trim()||null,
-    address:String(body.address||"").trim()||null,
-    municipality:String(body.municipality||"").trim()||null,
-    activity_code:String(body.activity_code||"").trim()||null,
-    activity_name:String(body.activity_name||"").trim()||null,
-    apr_raw:body.apr_raw||null,
-    owner_user_id:user.id,
-    plan:selected,
-    status:selected==="trial"?"trial":"active",
-    organization_type:"company",
-    trial_ends_at:selected==="trial"?new Date(Date.now()+10*24*60*60*1000).toISOString():null
-  }).select("id").single();
-  if(error)return NextResponse.json({error:error.message},{status:400});
-  const {error:memberError}=await supabase.from("organization_members").insert({organization_id:org.id,user_id:user.id,role:"owner"});
-  if(memberError)return NextResponse.json({error:memberError.message},{status:400});
-  const trialEnd=selected==="trial"?new Date(Date.now()+10*24*60*60*1000).toISOString():null;
-  await supabase.from("subscriptions").insert({organization_id:org.id,plan:selected,seat_count:1,status:selected==="trial"?"trial":"active",trial_started_at:selected==="trial"?new Date().toISOString():null,trial_ends_at:trialEnd,current_period_end:trialEnd});
-  if(selected!=="trial"){
-    try{const admin=createAdminClient();await createPlanProforma({admin,organization:{id:org.id,name,pib:String(body.pib||"").trim()||null,address:String(body.address||"").trim()||null},plan:selected,seats:1,recipientEmail:user.email||undefined,appBillingUrl:new URL("/app/billing",request.url).toString()});}catch{}
-  }
-  return NextResponse.json({id:org.id});
+  const supabase=await createClient();const {data:{user}}=await supabase.auth.getUser();if(!user)return NextResponse.json({error:'Niste prijavljeni.'},{status:401});
+  const body=await request.json();const companyId=String(body.company_id||'');if(!companyId)return NextResponse.json({error:'Izaberite firmu.'},{status:400});const plan=body.plan==='premium'?'premium':'basic';const trial=body.trial!==false;const admin=createAdminClient();const {data:company}=await admin.from('companies').select('*').eq('id',companyId).maybeSingle();if(!company)return NextResponse.json({error:'Firma nije pronađena u centralnoj bazi.'},{status:404});
+  const {data:existingOrg}=await admin.from('organizations').select('id,name').eq('company_id',companyId).limit(1).maybeSingle();if(existingOrg){const {data:pendingAccess}=await admin.from('company_access_requests').select('id').eq('company_id',companyId).eq('requester_user_id',user.id).eq('status','pending').maybeSingle();if(!pendingAccess)await admin.from('company_access_requests').insert({company_id:companyId,organization_id:existingOrg.id,requester_user_id:user.id,requested_role:'employee',status:'pending'});await admin.from('profiles').update({primary_company_id:companyId}).eq('user_id',user.id);return NextResponse.json({access_request_pending:true,message:'Firma već ima aktivan FiscalBox nalog. Zahtev za pristup je poslat administratoru.'});}
+  const now=new Date();const trialEnd=new Date(now.getTime()+10*24*60*60*1000).toISOString();const {data:org,error}=await admin.from('organizations').insert({company_id:companyId,name:company.name,pib:company.pib,registration_number:company.registration_number,legal_form:company.legal_form,address:company.address,municipality:company.municipality||company.city,activity_code:company.activity_code,activity_name:company.activity_name,apr_raw:company.apr_raw||null,owner_user_id:user.id,plan,status:trial?'trial':'pending_payment',organization_type:'company',trial_ends_at:trial?trialEnd:null,contact_email:user.email||null}).select('id').single();if(error||!org)return NextResponse.json({error:error?.message||'Firma nije kreirana.'},{status:400});
+  const {error:memberError}=await admin.from('organization_members').insert({organization_id:org.id,user_id:user.id,role:'owner'});if(memberError)return NextResponse.json({error:memberError.message},{status:400});await admin.from('profiles').update({primary_company_id:companyId}).eq('user_id',user.id);const {error:subError}=await admin.from('subscriptions').insert({organization_id:org.id,company_id:companyId,plan,seat_count:1,status:trial?'trial':'pending_checkout',provider:trial?null:'lemonsqueezy',trial_started_at:trial?now.toISOString():null,trial_ends_at:trial?trialEnd:null,trial_used_at:trial?now.toISOString():null,current_period_end:trial?trialEnd:null});if(subError)return NextResponse.json({error:subError.message},{status:400});return NextResponse.json({id:org.id,checkout_required:!trial,plan});
 }

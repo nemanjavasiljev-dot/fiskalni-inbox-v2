@@ -5,20 +5,23 @@ function ascii(value: unknown) {
     .replace(/[^\x20-\x7E]/g, "?");
 }
 function esc(value: unknown) { return ascii(value).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)"); }
-function fmtMoney(value: unknown) { return `${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} RSD`; }
+function fmtMoney(value: unknown, currency = "RSD") { return `${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`; }
 function fmtDate(value: unknown) { const d = value ? new Date(String(value)) : new Date(); return Number.isNaN(d.getTime()) ? "-" : d.toISOString().slice(0, 10); }
 
 export function buildBillingPdf(invoice: any) {
   const issuer = invoice.issuer_snapshot || {};
+  if (!issuer.company_name || issuer.is_demo === true) throw new Error("Produkcioni podaci izdavaoca nisu podešeni za ovaj dokument.");
+  const currency = String(invoice.currency || "RSD").toUpperCase();
   const lines: Array<{ text: string; size?: number; bold?: boolean; gap?: number }> = [
-    { text: issuer.is_demo ? "DEMO PREDRACUN - nije poreski dokument" : (invoice.document_type === "proforma" ? "PREDRACUN" : "RACUN"), size: 18, bold: true, gap: 28 },
+    { text: invoice.document_type === "proforma" ? "PREDRACUN" : "RACUN", size: 18, bold: true, gap: 28 },
     { text: `Broj: ${invoice.invoice_number}`, size: 11, bold: true },
     { text: `Datum izdavanja: ${fmtDate(invoice.issued_at)}` },
-    { text: `Status: ${invoice.status === "paid" ? "PLACENO" : invoice.status === "cancelled" ? "STORNIRANO" : "NEPLACENO"}`, gap: 24 },
+    { text: `Status: ${invoice.status === "paid" ? "PLACENO" : invoice.status === "cancelled" ? "STORNIRANO" : invoice.status === "refunded" ? "REFUNDIRANO" : "NEPLACENO"}`, gap: 24 },
     { text: "IZDAVALAC", size: 11, bold: true },
-    { text: issuer.company_name || "FiscalBox Demo" },
-    { text: `PIB: ${issuer.pib || "000000000"}` },
-    { text: issuer.address || "Demo izdavalac", gap: 22 },
+    { text: issuer.company_name },
+    { text: `PIB: ${issuer.pib || "-"}` },
+    { text: issuer.registration_number ? `Maticni broj: ${issuer.registration_number}` : "" },
+    { text: issuer.address || "-", gap: 22 },
     { text: "PRIMALAC", size: 11, bold: true },
     { text: invoice.recipient_name || "-" },
     { text: `PIB: ${invoice.recipient_pib || "-"}` },
@@ -26,11 +29,11 @@ export function buildBillingPdf(invoice: any) {
     { text: invoice.recipient_email ? `Email: ${invoice.recipient_email}` : "", gap: 26 },
     { text: "OBRACUN", size: 11, bold: true },
     { text: `${String(invoice.plan || "").toUpperCase()} paket - ${invoice.quantity || 1} korisnik(a)` },
-    { text: `Cena bez PDV po korisniku: ${fmtMoney(invoice.unit_price_net)}` },
-    { text: `Osnovica: ${fmtMoney(invoice.subtotal_net)}` },
-    { text: `PDV ${Number(invoice.vat_rate || 20)}%: ${fmtMoney(invoice.vat_amount)}` },
-    { text: `UKUPNO: ${fmtMoney(invoice.total_amount)}`, size: 14, bold: true, gap: 28 },
-    { text: issuer.note || "FiscalBox demo izdavalac. Podaci izdavaoca ce biti zamenjeni produkcionim podacima." },
+    { text: `Cena bez PDV po korisniku: ${fmtMoney(invoice.unit_price_net,currency)}` },
+    { text: `Osnovica: ${fmtMoney(invoice.subtotal_net,currency)}` },
+    { text: `PDV ${Number(invoice.vat_rate || 0)}%: ${fmtMoney(invoice.vat_amount,currency)}` },
+    { text: `UKUPNO: ${fmtMoney(invoice.total_amount,currency)}`, size: 14, bold: true, gap: 28 },
+    { text: issuer.note || "" },
     { text: "FiscalBox - Skeniraj. Sacuvaj. Posalji knjigovodji." }
   ].filter(x => x.text !== "");
 

@@ -10,11 +10,14 @@ export async function createPlanProforma(opts: { admin: any; organization: any; 
   const seats = Math.max(1, Number(opts.seats || 1));
   const unit = PLAN_NET_PRICES[opts.plan];
   const subtotal = unit * seats;
-  const vat = Math.round(subtotal * VAT_RATE) / 100;
+  const { data: issuer } = await opts.admin.from("billing_issuer_settings")
+    .select("*").eq("active", true).eq("is_demo", false)
+    .order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (!issuer) throw new Error("Produkcioni izdavalac računa nije podešen u billing_issuer_settings.");
+  const vatRate = Number(issuer.vat_rate ?? VAT_RATE);
+  const vat = Math.round(subtotal * vatRate) / 100;
   const total = subtotal + vat;
-  const { data: issuer } = await opts.admin.from("billing_issuer_settings").select("*").eq("active", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
   const invoiceNumber = `FB-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${randomUUID().slice(0,6).toUpperCase()}`;
-  const issuerSnapshot = issuer || { company_name: "FiscalBox Demo", pib: "000000000", address: "Demo izdavalac", email: "billing@fiscalbox.local", vat_rate: VAT_RATE, is_demo: true, note: "DEMO izdavalac - zameniti produkcionim podacima." };
   const payload = {
     organization_id: opts.organization.id,
     invoice_number: invoiceNumber,
@@ -23,7 +26,7 @@ export async function createPlanProforma(opts: { admin: any; organization: any; 
     quantity: seats,
     unit_price_net: unit,
     subtotal_net: subtotal,
-    vat_rate: VAT_RATE,
+    vat_rate: vatRate,
     vat_amount: vat,
     total_amount: total,
     currency: "RSD",
@@ -33,7 +36,8 @@ export async function createPlanProforma(opts: { admin: any; organization: any; 
     recipient_pib: opts.organization.pib || null,
     recipient_address: opts.organization.address || null,
     recipient_email: opts.recipientEmail || null,
-    issuer_snapshot: issuerSnapshot
+    issuer_snapshot: issuer,
+    provider: "manual"
   };
   const { data: invoice, error } = await opts.admin.from("billing_invoices").insert(payload).select("*").single();
   if (error) throw error;

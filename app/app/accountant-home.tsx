@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import BrandWordmark from "@/components/BrandWordmark";
 import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
 import PushNotificationOptIn from "@/components/PushNotificationOptIn";
+import CompanySearch, { type CompanySearchValue } from "@/components/CompanySearch";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short",timeStyle:"short"}).format(new Date(v)):"—";
@@ -20,12 +21,10 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const [notificationsOpen,setNotificationsOpen]=React.useState(false);
   const [query,setQuery]=React.useState("");
   const [addOpen,setAddOpen]=React.useState(false);
-  const [pib,setPib]=React.useState("");
-  const [companyName,setCompanyName]=React.useState("");
+  const [selectedCompany,setSelectedCompany]=React.useState<CompanySearchValue|null>(null);
   const [email,setEmail]=React.useState("");
   const [phone,setPhone]=React.useState("");
   const [channel,setChannel]=React.useState<"email"|"sms"|"both">("email");
-  const [lookupBusy,setLookupBusy]=React.useState(false);
   const [inviteBusy,setInviteBusy]=React.useState(false);
   const [inviteMessage,setInviteMessage]=React.useState("");
   const [inviteLink,setInviteLink]=React.useState("");
@@ -56,20 +55,13 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const q=query.trim().toLowerCase();
   const filteredClients=clientStats.filter((c:any)=>!q||String(c.name||"").toLowerCase().includes(q)||String(c.pib||"").includes(q));
 
-  async function lookupApr(){
-    if(pib.length!==9){setInviteMessage("Unesite PIB od 9 cifara.");return;}
-    setLookupBusy(true);setInviteMessage("");
-    const r=await fetch("/api/apr/lookup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:pib})});
-    const d=await r.json();setLookupBusy(false);
-    if(r.ok){setCompanyName(d.company?.name||"");setInviteMessage("Podaci su učitani iz APR-a.");}
-    else setInviteMessage(d.error||"APR trenutno nije dostupan. Naziv možete uneti ručno.");
-  }
   async function addClient(e:React.FormEvent){
     e.preventDefault();setInviteBusy(true);setInviteMessage("");setInviteLink("");
-    const r=await fetch("/api/accountant/clients/invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pib,company_name:companyName,email,phone,channel})});
+    if(!selectedCompany){setInviteBusy(false);setInviteMessage("Izaberite firmu iz APR pretrage.");return;}
+    const r=await fetch("/api/accountant/clients/invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({company_id:selectedCompany.id,email,phone,channel})});
     const d=await r.json();setInviteBusy(false);
     if(!r.ok){setInviteMessage(d.error||"Klijent nije dodat.");return;}
-    if(d.linked_existing){setInviteMessage(`Klijent ${d.name} je već registrovan i sada je povezan sa vašom agencijom.`);setTimeout(()=>{setAddOpen(false);router.refresh()},1000);return;}
+    if(d.request_sent){setInviteMessage(d.message||`Firma ${d.name} već ima FiscalBox nalog. Poslat je zahtev za povezivanje.`);setTimeout(()=>router.refresh(),700);return;}
     setInviteLink(d.invite_url||"");
     const parts=[];if(d.email?.sent)parts.push("email poslat");else if((channel==="email"||channel==="both")&&!d.email?.configured)parts.push("email servis nije podešen");if(d.sms?.sent)parts.push("SMS poslat");else if((channel==="sms"||channel==="both")&&!d.sms?.configured)parts.push("SMS servis nije podešen");
     setInviteMessage(`Poziv je kreiran${parts.length?` · ${parts.join(" · ")}`:""}.`);
@@ -100,7 +92,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
       <section className="accountant-section"><div className="section-title"><div><span className="pill"><Archive size={13}/> PDV PREGLED</span><h2>Ulazni PDV po klijentu</h2></div></div><div className="card vat-table"><div className="table-wrap"><table><thead><tr><th>Klijent</th><th>Računi</th><th>PDV sa fiskalnih računa</th><th></th></tr></thead><tbody>{filteredClients.map((c:any)=><tr key={c.organization_id}><td><b>{c.name}</b></td><td>{c.receiptCount}</td><td><b>{money(c.vat)}</b></td><td><a className="btn" href={`/app/accountant/clients/${c.organization_id}`}>Pregled / arhiva</a></td></tr>)}</tbody></table></div></div></section>
     </main></div>
 
-    {addOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setAddOpen(false)}}><div className="modal add-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Dodaj klijenta</h2></div><button className="btn" onClick={()=>setAddOpen(false)}><X size={16}/> Zatvori</button></div><form onSubmit={addClient}><div className="field"><label>PIB klijenta</label><div className="lookup-row"><input className="input" inputMode="numeric" value={pib} onChange={e=>setPib(e.target.value.replace(/\D/g,"").slice(0,9))} placeholder="9 cifara" required/><button className="btn" type="button" onClick={lookupApr} disabled={lookupBusy}>{lookupBusy?"APR…":"Učitaj iz APR-a"}</button></div></div><div className="field"><label>Naziv firme</label><input className="input" value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Popunjava APR ili unesite ručno" required/></div><div className="field-grid"><div className="field"><label>Email klijenta</label><input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="firma@domen.rs" required/></div><div className="field"><label>Telefon klijenta</label><input className="input" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+381..." required/></div></div><div className="field"><label>Pošalji poziv</label><select className="select" value={channel} onChange={e=>setChannel(e.target.value as any)}><option value="email">Email</option><option value="sms">SMS</option><option value="both">Email + SMS</option></select></div>{inviteMessage&&<div className="demo-box">{inviteMessage}{inviteLink&&<><br/><button type="button" className="btn" style={{marginTop:8}} onClick={copyInvite}>Kopiraj link poziva</button></>}</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={inviteBusy}>{inviteBusy?"Kreiram poziv…":"Dodaj klijenta i pošalji poziv"}</button></form></div></div>}
+    {addOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setAddOpen(false)}}><div className="modal add-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Dodaj firmu</h2></div><button className="btn" onClick={()=>setAddOpen(false)}><X size={16}/> Zatvori</button></div><form onSubmit={addClient}><CompanySearch value={selectedCompany} onSelect={setSelectedCompany} label="Pronađite klijenta" required placeholder="Naziv firme, PIB ili matični broj" showDetails/><div className="field-grid" style={{marginTop:14}}><div className="field"><label>Email klijenta</label><input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="firma@domen.rs" required/></div><div className="field"><label>Telefon klijenta</label><input className="input" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+381..." required/></div></div><div className="field"><label>Pošalji poziv</label><select className="select" value={channel} onChange={e=>setChannel(e.target.value as any)}><option value="email">Email</option><option value="sms">SMS</option><option value="both">Email + SMS</option></select></div>{inviteMessage&&<div className="demo-box">{inviteMessage}{inviteLink&&<><br/><button type="button" className="btn" style={{marginTop:8}} onClick={copyInvite}>Kopiraj link poziva</button></>}</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={inviteBusy||!selectedCompany}>{inviteBusy?"Kreiram poziv…":"Dodaj kao klijenta"}</button></form></div></div>}
   </div>;
 }
 

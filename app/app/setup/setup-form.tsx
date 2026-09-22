@@ -1,64 +1,9 @@
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import CompanySearch,{type CompanySearchValue} from '@/components/CompanySearch';
 export default function SetupForm(){
-  const router=useRouter();
-  const [lookup,setLookup]=useState("");
-  const [lookupBusy,setLookupBusy]=useState(false);
-  const [lookupMessage,setLookupMessage]=useState("");
-  const [manual,setManual]=useState(false);
-  const [plan,setPlan]=useState("trial");
-  const [saving,setSaving]=useState(false);
-  const [err,setErr]=useState("");
-  const [company,setCompany]=useState<any>({name:"",pib:"",registration_number:"",legal_form:"",address:"",municipality:"",activity_code:"",activity_name:"",apr_raw:null});
-
-  function field(key:string,value:string){setCompany((c:any)=>({...c,[key]:value}));}
-
-  async function findCompany(){
-    setLookupBusy(true);setLookupMessage("");setErr("");
-    try{
-      const r=await fetch("/api/apr/lookup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:lookup})});
-      const d=await r.json();
-      if(!r.ok) throw new Error(d.error||"APR pretraga nije uspela.");
-      setCompany({...company,...d.company});setManual(true);setLookupMessage("Podaci firme su pronađeni. Proverite ih i potvrdite.");
-    }catch(e:any){setLookupMessage(e.message||"APR pretraga nije uspela.");setManual(true);}
-    finally{setLookupBusy(false);}
-  }
-
-  async function save(e:React.FormEvent){
-    e.preventDefault();setErr("");setSaving(true);
-    try{
-      const r=await fetch("/api/org/create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...company,plan})});
-      const d=await r.json();
-      if(!r.ok) throw new Error(d.error||"Kreiranje firme nije uspelo.");
-      router.push("/app?org="+d.id);router.refresh();
-    }catch(e:any){setErr(e.message||"Greška pri kreiranju firme.");}
-    finally{setSaving(false);}
-  }
-
-  return <>
-    <div className="setup-lookup">
-      <div className="field"><label>PIB ili matični broj</label><div className="lookup-row"><input className="input" inputMode="numeric" value={lookup} onChange={e=>setLookup(e.target.value.replace(/\D/g,""))} placeholder="PIB 9 cifara ili MB 8 cifara" maxLength={9}/><button type="button" className="btn btn-primary" onClick={findCompany} disabled={lookupBusy||![8,9].includes(lookup.length)}>{lookupBusy?"Tražim…":"Povuci iz APR-a"}</button></div></div>
-      {lookupMessage&&<div className="lookup-message">{lookupMessage}</div>}
-      {!manual&&<button type="button" className="manual-link" onClick={()=>setManual(true)}>Unesi podatke ručno</button>}
-    </div>
-
-    {manual&&<form onSubmit={save} className="setup-company-form">
-      <div className="setup-grid">
-        <div className="field setup-wide"><label>Naziv firme</label><input className="input" value={company.name} onChange={e=>field("name",e.target.value)} required/></div>
-        <div className="field"><label>PIB</label><input className="input" value={company.pib} onChange={e=>field("pib",e.target.value.replace(/\D/g,""))} maxLength={9}/></div>
-        <div className="field"><label>Matični broj</label><input className="input" value={company.registration_number} onChange={e=>field("registration_number",e.target.value.replace(/\D/g,""))} maxLength={8}/></div>
-        <div className="field"><label>Pravna forma</label><input className="input" value={company.legal_form} onChange={e=>field("legal_form",e.target.value)}/></div>
-        <div className="field"><label>Opština</label><input className="input" value={company.municipality} onChange={e=>field("municipality",e.target.value)}/></div>
-        <div className="field setup-wide"><label>Adresa sedišta</label><input className="input" value={company.address} onChange={e=>field("address",e.target.value)}/></div>
-        <div className="field"><label>Šifra delatnosti</label><input className="input" value={company.activity_code} onChange={e=>field("activity_code",e.target.value)}/></div>
-        <div className="field"><label>Naziv delatnosti</label><input className="input" value={company.activity_name} onChange={e=>field("activity_name",e.target.value)}/></div>
-        <div className="field setup-wide"><label>Paket</label><select className="select" value={plan} onChange={e=>setPlan(e.target.value)}><option value="trial">Probni — 10 dana besplatno</option><option value="basic">Basic — 1.250 RSD + PDV / korisnik</option><option value="premium">Premium — 1.790 RSD + PDV / korisnik</option></select></div>
-      </div>
-      {err&&<div className="error">{err}</div>}
-      <button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={saving}>{saving?"Kreiram firmu…":"Potvrdi i kreiraj firmu"}</button>
-    </form>}
-  </>;
+  const router=useRouter();const [company,setCompany]=useState<CompanySearchValue|null>(null);const [plan,setPlan]=useState<'basic'|'premium'>('basic');const [trial,setTrial]=useState(true);const [saving,setSaving]=useState(false);const [err,setErr]=useState('');
+  async function save(e:React.FormEvent){e.preventDefault();if(!company){setErr('Izaberite firmu iz APR pretrage.');return;}setErr('');setSaving(true);try{const r=await fetch('/api/org/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_id:company.id,plan,trial})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Kreiranje firme nije uspelo.');if(d.access_request_pending){router.push('/app');router.refresh();return;}if(d.checkout_required){const cr=await fetch('/api/subscriptions/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({organization_id:d.id,plan})});const cd=await cr.json();if(!cr.ok)throw new Error(cd.error||'Online pretplata nije mogla da se pokrene.');window.location.href=cd.url;return;}router.push('/app?org='+d.id);router.refresh();}catch(e:any){setErr(e.message||'Greška pri povezivanju firme.');}finally{setSaving(false);}}
+  return <form onSubmit={save} className="setup-company-form"><CompanySearch value={company} onSelect={setCompany} label="Pronađite svoju firmu" required placeholder="Naziv firme, PIB ili matični broj" showDetails/><div className="setup-grid" style={{marginTop:18}}><div className="field"><label>Paket</label><select className="select" value={plan} onChange={e=>setPlan(e.target.value as any)}><option value="basic">Basic — 1.250 RSD + PDV / korisnik</option><option value="premium">Premium — 1.790 RSD + PDV / korisnik</option></select></div><div className="field"><label>Početak</label><select className="select" value={trial?'trial':'paid'} onChange={e=>setTrial(e.target.value==='trial')}><option value="trial">Probaj 10 dana besplatno</option><option value="paid">Aktiviraj pretplatu odmah</option></select></div></div>{err&&<div className="error">{err}</div>}<button className="btn btn-primary" style={{width:'100%',marginTop:16}} disabled={saving||!company}>{saving?'Povezujem firmu…':trial?'Ovo je moja firma — pokreni trial':'Ovo je moja firma — pređi na plaćanje'}</button></form>;
 }

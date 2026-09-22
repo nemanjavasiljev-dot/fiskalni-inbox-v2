@@ -11,6 +11,7 @@ import { RECEIPT_CATEGORIES } from "@/lib/receipt-category";
 import AccountantHome from "./accountant-home";
 import MasterAdmin from "./master-admin";
 import PushNotificationOptIn from "@/components/PushNotificationOptIn";
+import CompanySearch, { type CompanySearchValue } from "@/components/CompanySearch";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short"}).format(new Date(v)):"—";
@@ -22,7 +23,7 @@ function monthDueDate(){
 }
 function monthLabel(){return new Intl.DateTimeFormat("sr-RS",{month:"long",year:"numeric"}).format(new Date());}
 
-export default function Dashboard({profile,organizations,activeOrg,receipts,master,accountantOverview,accountantContext}:any) {
+export default function Dashboard({profile,organizations,activeOrg,receipts,master,accountantOverview,accountantContext,accessContext}:any) {
   const router=useRouter();
   const [receiptList,setReceiptList]=useState<any[]>(receipts||[]);
   const [scan,setScan]=useState(false);
@@ -37,7 +38,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   const [sendSchedule,setSendSchedule]=useState(String(activeOrg?.receipt_send_schedule||"manual"));
   const [settingsBusy,setSettingsBusy]=useState(false);
   const [settingsMessage,setSettingsMessage]=useState("");
-  const [accountantLinkPib,setAccountantLinkPib]=useState(String(activeOrg?.accountant_pib_pending||""));
+  const [selectedAccountantCompany,setSelectedAccountantCompany]=useState<CompanySearchValue|null>(null);
   const [accountantLinkEmail,setAccountantLinkEmail]=useState(String(activeOrg?.accountant_contact_email||""));
   const [accountantLinkBusy,setAccountantLinkBusy]=useState(false);
   const [accountantLinkMessage,setAccountantLinkMessage]=useState("");
@@ -49,10 +50,10 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   useEffect(()=>{
     setReceiptList(receipts||[]);
     setSendSchedule(String(activeOrg?.receipt_send_schedule||"manual"));
-    setAccountantLinkPib(String(activeOrg?.accountant_pib_pending||""));
+    setSelectedAccountantCompany(null);
     setAccountantLinkEmail(String(activeOrg?.accountant_contact_email||""));
     setLogoAvailable(Boolean(activeOrg?.logo_path));
-  },[receipts,activeOrg?.organization_id,activeOrg?.receipt_send_schedule,activeOrg?.accountant_pib_pending,activeOrg?.accountant_contact_email,activeOrg?.logo_path]);
+  },[receipts,activeOrg?.organization_id,activeOrg?.receipt_send_schedule,activeOrg?.accountant_contact_email,activeOrg?.logo_path]);
 
   const total=useMemo(()=>receiptList.reduce((s:any,r:any)=>s+Number(r.total_amount||0),0),[receiptList]);
   const tax=useMemo(()=>receiptList.reduce((s:any,r:any)=>s+Number(r.total_tax||0),0),[receiptList]);
@@ -103,11 +104,11 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       const assignments=master.members.filter((m:any)=>m.role==="accountant"&&String(m.user_id)===id);
       const orgIds: string[] = Array.from(new Set<string>(assignments.map((m:any)=>String(m.organization_id))));
       const clients=orgIds.map((orgId:string)=>orgMap.get(orgId)).filter(Boolean);
-      const users=orgIds.reduce((sum:number,orgId:string)=>{const o:any=orgMap.get(orgId); return sum+(o&&o.plan!=="trial"?(companyUsersByOrg.get(orgId)||0):0);},0);
+      const users=orgIds.reduce((sum:number,orgId:string)=>{const o:any=orgMap.get(orgId); return sum+(o?(companyUsersByOrg.get(orgId)||0):0);},0);
       const p:any=profileMap.get(id)||{};
       return {id,name:p.full_name||p.username||p.auth_email||"Knjigovođa",email:p.auth_email||"",clients,users,payout:users*250};
     }).sort((a:any,b:any)=>b.payout-a.payout);
-    const gross=companyOrgs.reduce((sum:number,o:any)=>sum+(o.plan==="trial"?0:(companyUsersByOrg.get(String(o.id))||1)*(o.plan==="premium"?1790:1250)),0);
+    const gross=companyOrgs.reduce((sum:number,o:any)=>sum+(companyUsersByOrg.get(String(o.id))||1)*(o.plan==="premium"?1790:1250),0);
     const payouts=accountants.reduce((sum:number,a:any)=>sum+a.payout,0);
     const profit=gross-payouts;
 
@@ -182,15 +183,27 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
 
   async function linkAccountant(){
     if(!activeOrg||accountantLinkBusy) return;
+    if(!selectedAccountantCompany){setAccountantLinkMessage("Izaberite knjigovodstvenu firmu iz APR pretrage.");return;}
     setAccountantLinkBusy(true);setAccountantLinkMessage("");
     try{
-      const r=await fetch("/api/org/accountant-link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({organization_id:activeOrg.organization_id,accountant_pib:accountantLinkPib,accountant_email:accountantLinkEmail})});
+      const r=await fetch("/api/org/accountant-link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({organization_id:activeOrg.organization_id,accountant_company_id:selectedAccountantCompany.id,accountant_email:accountantLinkEmail})});
       const d=await r.json();
       if(!r.ok) throw new Error(d.error||"Povezivanje nije uspelo.");
       setAccountantLinkMessage(d.message||"Podešavanje je sačuvano.");
       router.refresh();
     }catch(e:any){setAccountantLinkMessage(e.message||"Povezivanje nije uspelo.");}
     finally{setAccountantLinkBusy(false);}
+  }
+
+  async function reviewRelationship(kind:"access"|"accountant",id:string,decision:"approve"|"reject"){
+    setHomeMessage("");
+    try{
+      const path=kind==="access"?`/api/company-access-requests/${id}`:`/api/accountant-company/${id}`;
+      const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"Zahtev nije obrađen.");
+      setHomeMessage(d.message||"Zahtev je obrađen.");router.refresh();
+    }catch(e:any){setHomeMessage(e.message||"Zahtev nije obrađen.");}
   }
 
   async function uploadLogo(file?:File){
@@ -229,8 +242,9 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       </div>
     </div>
 
-    {!activeOrg?<Onboarding/>:<>
+    {!activeOrg?(accessContext?.ownPending?.length?<PendingCompanyAccess requests={accessContext.ownPending}/>:<Onboarding/>):<>
       {homeMessage&&<div className="home-message">{homeMessage}</div>}
+      {(accessContext?.incomingAccessRequests?.length||accessContext?.incomingAccountantRequests?.length)?<div className="card company-requests-card"><div className="section-title"><div><span className="pill">ZAHTEVI</span><h3>Pristup i povezivanje firme</h3></div></div><div className="company-request-list">{(accessContext?.incomingAccessRequests||[]).map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.requester?.full_name||r.requester?.username||r.requester?.auth_email||'Novi korisnik'}</b><span>Traži pristup postojećem FiscalBox nalogu firme.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewRelationship('access',r.id,'approve')}>Odobri</button><button className="btn" onClick={()=>reviewRelationship('access',r.id,'reject')}>Odbij</button></div></div>)}{(accessContext?.incomingAccountantRequests||[]).map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.accounting_organization?.name||'Knjigovodstvena agencija'}</b><span>Traži povezivanje sa vašom firmom{r.accounting_organization?.pib?` · PIB ${r.accounting_organization.pib}`:''}.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewRelationship('accountant',r.id,'approve')}>Poveži</button><button className="btn" onClick={()=>reviewRelationship('accountant',r.id,'reject')}>Odbij</button></div></div>)}</div></div>:null}
       {searchOpen&&<div className="card user-search-card"><div className="user-search-row"><span aria-hidden="true">⌕</span><input ref={searchRef} className="user-search-input" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pretraži dobavljača, PIB, broj računa, kategoriju…"/>{query&&<button className="user-search-clear" onClick={()=>setQuery("")} aria-label="Obriši pretragu">×</button>}</div><div className="muted" style={{fontSize:12,marginTop:8}}>{query?`${filteredReceipts.length} rezultata`:"Pretražite kompletnu bazu računa."}</div></div>}
       <div className="grid stats"><Stat label="Broj računa" value={receiptList.length}/><Stat label="Ukupni troškovi" value={money(total)}/><Stat label="PDV" value={money(tax)}/><Stat label={isCompanyUser?"Čeka slanje":"Primljeno"} value={isCompanyUser?unsentCount:receiptList.length}/></div>
 
@@ -243,13 +257,15 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
     </>}
 
     {scan&&activeOrg&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setScan(false)}}><div className="modal qr-modal"><div className="modal-head"><div><span className="pill">NOVI RAČUN</span><h2>QR skener</h2></div><button className="btn" onClick={()=>setScan(false)}>Zatvori</button></div><p className="muted" style={{marginTop:0}}>Posle očitavanja račun se odmah dodaje na listu i automatski kategorizuje.</p><QrScanner organizationId={activeOrg.organization_id} onDone={onScanDone}/></div></div>}
-    {moreOpen&&isCompanyUser&&<div className="bottom-sheet-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}><div className="bottom-sheet"><div className="bottom-sheet-handle"/><div className="bottom-sheet-head"><div><span className="pill">VIŠE</span><h3>Opcije naloga</h3></div><button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button></div><div className="more-list"><div className="more-info"><span>Firma</span><b>{activeOrg.name}</b></div><div className="more-info"><span>Paket</span><b>{String(activeOrg.plan||"basic").toUpperCase()}</b></div><div className="auto-send-settings"><b>Poveži knjigovođu</b><p>Možete dodati knjigovođu i posle registracije. Unesite njegov PIB; ako još nije u sistemu, unesite i email.</p><input className="input" inputMode="numeric" value={accountantLinkPib} onChange={e=>setAccountantLinkPib(e.target.value.replace(/\D/g,"").slice(0,9))} placeholder="PIB knjigovođe"/><input className="input" type="email" value={accountantLinkEmail} onChange={e=>setAccountantLinkEmail(e.target.value)} placeholder="Email knjigovođe (ako nije registrovan)"/><button className="btn" onClick={linkAccountant} disabled={accountantLinkBusy}>{accountantLinkBusy?"Proveravam…":"Poveži / sačuvaj kontakt"}</button>{accountantLinkMessage&&<small>{accountantLinkMessage}</small>}</div><div className="auto-send-settings"><b>Automatsko slanje knjigovođi</b><p>Izaberite kada da se svi neposlati fiskalni računi automatski proslede knjigovođi.</p><select className="select" value={sendSchedule} onChange={e=>setSendSchedule(e.target.value)}><option value="manual">Isključeno — šaljem ručno</option><option value="weekly">Nedeljno — svakog petka</option><option value="monthly">Mesečno — poslednjeg dana</option></select><button className="btn btn-primary" onClick={saveSendSchedule} disabled={settingsBusy}>{settingsBusy?"Čuvam…":"Sačuvaj raspored"}</button>{settingsMessage&&<small>{settingsMessage}</small>}</div><button className="more-action" onClick={sendNow}>Pošalji račune knjigovođi sada <b>→</b></button><button className="more-action" onClick={openFiles}>Fajlovi <b>→</b></button><a className="more-action" href="/app/billing">Moji računi <b>→</b></a><a className="more-action" href={`/api/export/csv?organization_id=${activeOrg.organization_id}`}>Izvezi bazu kao CSV <b>→</b></a><a className="more-action" href="/app/setup">Podešavanja firme <b>→</b></a><form method="post" action="/api/auth/logout"><button className="more-action danger" style={{width:"100%"}}>Odjavi se <b>→</b></button></form></div></div></div>}
+    {moreOpen&&isCompanyUser&&<div className="bottom-sheet-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}><div className="bottom-sheet"><div className="bottom-sheet-handle"/><div className="bottom-sheet-head"><div><span className="pill">VIŠE</span><h3>Opcije naloga</h3></div><button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button></div><div className="more-list"><div className="more-info"><span>Firma</span><b>{activeOrg.name}</b></div><div className="more-info"><span>Paket</span><b>{String(activeOrg.plan||"basic").toUpperCase()}</b></div><div className="auto-send-settings"><b>Poveži knjigovođu</b><p>Pronađite knjigovodstvenu firmu po nazivu, PIB-u ili matičnom broju. Ako još nema FiscalBox nalog, možete dodati email za poziv.</p><CompanySearch value={selectedAccountantCompany} onSelect={setSelectedAccountantCompany} label="Knjigovodstvena firma" compact showDetails={false}/><input className="input" type="email" value={accountantLinkEmail} onChange={e=>setAccountantLinkEmail(e.target.value)} placeholder="Email knjigovođe (ako još nije registrovan)"/><button className="btn" onClick={linkAccountant} disabled={accountantLinkBusy||!selectedAccountantCompany}>{accountantLinkBusy?"Proveravam…":"Poveži / pošalji poziv"}</button>{accountantLinkMessage&&<small>{accountantLinkMessage}</small>}</div><div className="auto-send-settings"><b>Automatsko slanje knjigovođi</b><p>Izaberite kada da se svi neposlati fiskalni računi automatski proslede knjigovođi.</p><select className="select" value={sendSchedule} onChange={e=>setSendSchedule(e.target.value)}><option value="manual">Isključeno — šaljem ručno</option><option value="weekly">Nedeljno — svakog petka</option><option value="monthly">Mesečno — poslednjeg dana</option></select><button className="btn btn-primary" onClick={saveSendSchedule} disabled={settingsBusy}>{settingsBusy?"Čuvam…":"Sačuvaj raspored"}</button>{settingsMessage&&<small>{settingsMessage}</small>}</div><button className="more-action" onClick={sendNow}>Pošalji račune knjigovođi sada <b>→</b></button><button className="more-action" onClick={openFiles}>Fajlovi <b>→</b></button><a className="more-action" href={`/app/subscription?organization_id=${activeOrg.organization_id}`}>Pretplata <b>→</b></a><a className="more-action" href="/app/billing">Moji računi <b>→</b></a><a className="more-action" href={`/api/export/csv?organization_id=${activeOrg.organization_id}`}>Izvezi bazu kao CSV <b>→</b></a><a className="more-action" href="/app/setup">Podešavanja firme <b>→</b></a><form method="post" action="/api/auth/logout"><button className="more-action danger" style={{width:"100%"}}>Odjavi se <b>→</b></button></form></div></div></div>}
     {isCompanyUser&&<UserBottomNav active={navActive} onHome={goHome} onSearch={openSearch} onScan={openScanner} onFiles={openFiles} onMore={openMore}/>} 
   </Shell>;
 }
 
 function Shell({profile,children,hasBottomNav=false}:any){return <div className={`app-shell ${hasBottomNav?"with-bottom-nav":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><div className="actions"><PushNotificationOptIn/><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header><main className="container app-main">{children}</main></div>}
 function ServiceBlocked({profile,reason}:any){return <div className="app-shell"><header className="appbar"><div className="container appbar-in"><a className="brand" href="/"><span className="logo">F</span><BrandWordmark/></a><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></header><main className="container app-main"><div className="card service-blocked"><span className="pill">USLUGA BLOKIRANA</span><h1>FiscalBox pristup je privremeno blokiran</h1><p>{reason||"Obratite se FiscalBox administratoru radi ponovne aktivacije usluge."}</p><small>Nalog: {profile.username}</small></div></main></div>}
+
+function PendingCompanyAccess({requests}:any){return <div className="card pending-company-access"><span className="pill">ZAHTEV POSLAT</span><h2>Firma već ima aktivan FiscalBox nalog</h2><p className="muted">Nećemo praviti duplikat firme niti vam automatski dati administratorska prava. Postojeći administrator mora da odobri vaš zahtev za pristup.</p>{(requests||[]).map((r:any)=><div key={r.id} className="pending-company-access-row"><b>{r.organizations?.name||'Firma'}</b><span>{r.organizations?.pib?`PIB ${r.organizations.pib} · `:''}zahtev na čekanju</span></div>)}</div>}
 
 function Stat({label,value}:any){return <div className="card stat"><span>{label}</span><strong>{value}</strong></div>}
 function Onboarding(){return <div className="card" style={{padding:30,maxWidth:650}}><span className="pill">PRVI KORAK</span><h2>Povežite firmu</h2><p className="muted">Unesite PIB ili matični broj. Kada je APR API konfigurisan, podaci firme se popunjavaju automatski.</p><a className="btn btn-primary" href="/app/setup">Unesi PIB / matični broj</a></div>}
