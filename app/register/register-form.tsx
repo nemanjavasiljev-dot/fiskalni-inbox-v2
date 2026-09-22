@@ -8,7 +8,7 @@ type Role='company'|'accountant';
 type Company={name:string;pib:string;registration_number:string;legal_form:string;address:string;municipality:string;activity_code:string;activity_name:string;apr_raw:any};
 const emptyCompany:Company={name:'',pib:'',registration_number:'',legal_form:'',address:'',municipality:'',activity_code:'',activity_name:'',apr_raw:null};
 
-export default function RegisterForm(){
+export default function RegisterForm({initialPlan='trial'}:{initialPlan?:string}){
   const router=useRouter();
   const [step,setStep]=useState(1);
   const [role,setRole]=useState<Role>('company');
@@ -21,7 +21,7 @@ export default function RegisterForm(){
   const [manual,setManual]=useState(false);
   const [lookupBusy,setLookupBusy]=useState(false);
   const [lookupMessage,setLookupMessage]=useState('');
-  const [plan,setPlan]=useState<'trial'|'basic'|'premium'>('trial');
+  const [plan,setPlan]=useState<'trial'|'basic'|'premium'>(initialPlan==='premium'?'premium':initialPlan==='basic'?'basic':'trial');
   const [accountantPib,setAccountantPib]=useState('');
   const [accountantEmail,setAccountantEmail]=useState('');
   const [accountantState,setAccountantState]=useState<any>(null);
@@ -121,14 +121,14 @@ export default function RegisterForm(){
     {step===4&&<section className="register-step">
       <h2>Izaberite paket</h2><div className="register-plans">
         <button className={`register-plan ${plan==='trial'?'selected':''}`} onClick={()=>setPlan('trial')}><span className="tag-inline">10 DANA</span><b>Probni</b><strong>0 RSD</strong><small>Besplatno 10 dana. Bez obaveze.</small></button>
-        <button className={`register-plan ${plan==='basic'?'selected':''}`} onClick={()=>setPlan('basic')}><b>Basic</b><strong>1.250 RSD</strong><small>po korisniku / mesečno</small></button>
-        <button className={`register-plan ${plan==='premium'?'selected':''}`} onClick={()=>setPlan('premium')}><b>Premium</b><strong>2.000 RSD</strong><small>po korisniku / mesečno</small></button>
-      </div>
+        <button className={`register-plan ${plan==='basic'?'selected':''}`} onClick={()=>setPlan('basic')}><b>Basic</b><strong>1.250 RSD + PDV</strong><small>po korisniku / mesečno</small></button>
+        <button className={`register-plan ${plan==='premium'?'selected':''}`} onClick={()=>setPlan('premium')}><b>Premium</b><strong>1.790 RSD + PDV</strong><small>po korisniku / mesečno</small></button>
+      </div><p className="muted" style={{fontSize:12,marginTop:12}}>Za Basic i Premium po završetku registracije kreira se predračun i šalje na email kada je email servis aktivan.</p>
       <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={()=>role==='company'?next():submit()} disabled={busy}>{role==='company'?'Nastavi':busy?'Kreiram nalog…':'Završi registraciju'}</button></div>
     </section>}
 
     {step===5&&role==='company'&&<section className="register-step">
-      <h2>Povežite knjigovođu <span className="optional-label">opciono</span></h2><p className="muted">Unesite PIB knjigovođe. Ako je već na Fiskalnom Inbox-u, povezujemo vas automatski. Ovaj korak možete uraditi i kasnije.</p>
+      <h2>Povežite knjigovođu <span className="optional-label">opciono</span></h2><p className="muted">Unesite PIB knjigovođe. Ako je već na FiscalBox-u, povezujemo vas automatski. Ovaj korak možete uraditi i kasnije.</p>
       <div className="field"><label>PIB knjigovođe</label><div className="lookup-row"><input className="input" inputMode="numeric" value={accountantPib} onChange={e=>{setAccountantPib(e.target.value.replace(/\D/g,'').slice(0,9));setAccountantState(null)}} placeholder="9 cifara"/><button className="btn" onClick={checkAccountant} disabled={checkingAccountant||accountantPib.length!==9}>{checkingAccountant?'Proveravam…':'Proveri'}</button></div></div>
       {accountantState&&<div className={`accountant-result ${accountantState.found?'found':'not-found'}`}>{accountantState.found?<Check size={18}/>:<UserRound size={18}/>}<span>{accountantState.message}</span></div>}
       {accountantState&&!accountantState.found&&<div className="field"><label>Email knjigovođe</label><input className="input" type="email" value={accountantEmail} onChange={e=>setAccountantEmail(e.target.value)} placeholder="knjigovodja@firma.rs"/><small className="muted">Email čuvamo kao kontakt za poziv i slanje dok se knjigovođa ne registruje.</small></div>}

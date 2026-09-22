@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import LoginPanel from "./panel";
+import BrandWordmark from "@/components/BrandWordmark";
 
 export default function LoginPage() {
   return (
@@ -8,7 +9,7 @@ export default function LoginPage() {
       <div className="card auth-card">
         <Link className="brand" href="/">
           <span className="logo">F</span>
-          <span>FiscalBox</span>
+          <BrandWordmark/>
         </Link>
         <h1>Prijava</h1>
         <p className="muted">Prijavite se korisničkim imenom i lozinkom.</p>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { sendAccountantInvite } from '@/lib/mailer';
+import { createPlanProforma } from '@/lib/billing';
 
 const USERNAME=/^[a-z0-9._-]{3,30}$/;
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -71,6 +72,11 @@ export async function POST(request:Request){
 
     const {error:subError}=await admin.from('subscriptions').insert({organization_id:org.id,plan,seat_count:1,status:plan==='trial'?'trial':'active',trial_started_at:plan==='trial'?now.toISOString():null,trial_ends_at:plan==='trial'?trialEnd:null,current_period_end:plan==='trial'?trialEnd:null});
     if(subError) throw subError;
+
+    // Paid plans immediately receive a demo proforma and email when Resend is configured.
+    if(plan!=='trial'){
+      try{await createPlanProforma({admin,organization:{...orgPayload,id:org.id},plan,seats:1,recipientEmail:email,appBillingUrl:new URL('/app/billing',request.url).toString()});}catch{}
+    }
 
     // If an accountant was invited before registering, connect all matching clients automatically.
     if(role==='accountant'){

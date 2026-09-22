@@ -104,3 +104,61 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .cta{background:#0D382B}.price.pop{border-color:#127755}.tag{background:#CEF667;color:#17221E}
 @media(max-width:900px){.brand-strip{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.brand-strip{grid-template-columns:1fr}.hero-brand-tagline{font-size:19px}}
+
+
+/* FiscalBox mobile size tuning — requested 2026-09-22 */
+@media (max-width: 650px){
+  /* FiscalBox wordmark text +20% on mobile, icon unchanged */
+  .brand > span:last-child{font-size:1.2em;line-height:1.05}
+
+  /* DEMO label is 20% smaller than its original size, while FiscalBox remains enlarged */
+  .brand-demo-label{font-size:66.6667%;font-weight:850;letter-spacing:.02em}
+
+  /* Login / logout controls: 30% smaller text and control height on mobile */
+  a.btn[href="/login"],
+  .auth-login-submit,
+  form[action="/api/auth/logout"] .btn,
+  .demo-logout-button{
+    font-size:70%;
+    padding:7px 11px;
+    min-height:0;
+    border-radius:9px;
+    line-height:1.15;
+  }
+
+  /* keep full-width login action aligned on the login screen */
+  .auth-login-submit{width:100%!important}
+}
+
+/* FiscalBox V4.5 — billing, document scanner, desktop KNJIGO menu and responsive landing */
+.brand-wordmark{display:inline-flex;align-items:baseline;font-weight:950;letter-spacing:-.04em;background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;color:inherit!important;white-space:nowrap}
+.brand-fiscal{color:#0D382B}.brand-box{color:#127755}.brand-suffix{color:#5f6b66;font-size:.72em;font-weight:850;letter-spacing:.01em;margin-left:4px}
+.brand>span:last-child{background:none!important;color:inherit!important;-webkit-background-clip:initial!important;background-clip:initial!important}
+.btn-brand-green{background:#127755;border-color:#127755;color:#fff}.btn-brand-green:hover{background:#0D382B;border-color:#0D382B}
+
+/* Landing: stronger desktop identity */
+.nav .landing-brand{gap:16px}.nav .landing-brand .logo{width:84px;height:84px;border-radius:22px}.nav .landing-brand .brand-wordmark{font-size:34px}.nav .navin{min-height:104px;height:auto;padding:9px 0}.landing-actions{align-items:center}.landing-actions .btn{white-space:nowrap}.btn-install-compact{background:#fff;border-color:#b9c9c1;color:#0D382B}
+.install-app-block.compact{margin:0}.install-app-block.compact .install-help{position:absolute;z-index:50;margin-top:8px;background:#fff;padding:10px 12px;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);max-width:300px;font-size:11px}
+
+/* Document scanner */
+.document-scanner-modal{max-width:780px}.document-scanner-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.document-scanner-head h2{margin:8px 0 0}.document-camera-stage{position:relative;background:#0D1612;border-radius:18px;min-height:420px;overflow:hidden;margin-top:16px;display:grid;place-items:center}.document-camera-stage video,.document-camera-stage img{width:100%;height:min(68vh,620px);object-fit:contain;display:block}.document-camera-guide{position:absolute;inset:8%;border:2px dashed rgba(206,246,103,.9);border-radius:16px;display:flex;align-items:flex-end;justify-content:center;pointer-events:none}.document-camera-guide:before,.document-camera-guide:after{content:"";position:absolute;width:38px;height:38px;border-color:#CEF667}.document-camera-guide:before{left:-2px;top:-2px;border-left:4px solid #CEF667;border-top:4px solid #CEF667}.document-camera-guide:after{right:-2px;bottom:-2px;border-right:4px solid #CEF667;border-bottom:4px solid #CEF667}.document-camera-guide span{margin-bottom:14px;background:rgba(0,0,0,.65);color:#fff;padding:7px 11px;border-radius:99px;font-size:11px}.document-scanner-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap}
+
+/* Billing */
+.billing-stats{margin-bottom:18px}.billing-filter{display:flex;gap:7px;margin:18px 0}.billing-filter a{padding:9px 13px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:12px;font-weight:800;color:var(--muted)}.billing-filter a.active{background:#0D382B;color:#fff;border-color:#0D382B}.billing-table{overflow:hidden}.billing-status{display:inline-flex;padding:6px 9px;border-radius:99px;font-size:10px;font-weight:900}.billing-status.paid{background:#e6f5eb;color:#127755}.billing-status.unpaid{background:#fff1d7;color:#785414}.billing-status.cancelled{background:#f3eeee;color:#7e3333}
+
+/* Desktop-oriented accountant menu */
+.accountant-desktop-layout{width:min(1480px,calc(100% - 32px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;align-items:start}.accountant-main{width:auto;margin:0;min-width:0}.accountant-desktop-menu{position:sticky;top:94px;margin-top:30px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow)}.accountant-menu-title{font-size:10px;letter-spacing:.12em;color:var(--muted);font-weight:900;padding:5px 8px 10px}.accountant-desktop-menu nav{display:grid;gap:5px}.accountant-desktop-menu nav a{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:11px;font-size:13px;font-weight:800;color:#55645d}.accountant-desktop-menu nav a:hover,.accountant-desktop-menu nav a.active{background:#edf6f1;color:#0D382B}.accountant-menu-logout{width:100%;margin-top:13px;border:0;border-top:1px solid var(--line);background:transparent;padding:13px 10px 5px;text-align:left;color:#9a3b34;font-weight:800;cursor:pointer}
+
+@media(max-width:1000px){.accountant-desktop-layout{display:block;width:auto}.accountant-desktop-menu{display:none}.accountant-main{width:min(1180px,calc(100% - 32px));margin:auto}}
+
+/* Mobile landing header: one compact row with logo + actions */
+@media(max-width:650px){
+  .nav .navin{width:calc(100% - 16px);min-height:62px;padding:6px 0;gap:6px;flex-wrap:nowrap}
+  .nav .landing-brand{gap:5px;min-width:0;flex:0 1 auto}.nav .landing-brand .logo{width:38px;height:38px;border-radius:10px}.nav .landing-brand .brand-wordmark{font-size:17px;line-height:1}
+  .nav .landing-actions{display:flex;gap:4px;flex-wrap:nowrap;margin-left:auto;min-width:0}.nav .landing-actions .btn{padding:6px 7px;border-radius:8px;font-size:9px;line-height:1;min-height:30px}
+  .nav .landing-actions .landing-login{padding-left:5px;padding-right:5px}.nav .landing-actions .landing-register,.nav .landing-actions .landing-demo{font-weight:850}
+  .brand > .brand-wordmark{font-size:1.2em}.brand-suffix{font-size:.55em}
+  .hero-actions{display:grid;grid-template-columns:1fr 1fr}.hero-actions .btn{width:100%!important}.hero-actions .install-app-block{grid-column:1/-1}.hero-actions .install-app-block .btn{width:100%}
+  .document-camera-stage{min-height:300px}.document-camera-stage video,.document-camera-stage img{height:52vh}.document-scanner-actions .btn{flex:1}
+  .billing-stats{grid-template-columns:1fr 1fr!important}.billing-filter{overflow:auto;white-space:nowrap}.billing-table table{min-width:780px}
+}

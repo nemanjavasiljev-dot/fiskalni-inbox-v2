@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createPlanProforma } from "@/lib/billing";
 
 export async function POST(request:Request){
   const supabase=await createClient();
@@ -30,5 +32,8 @@ export async function POST(request:Request){
   if(memberError)return NextResponse.json({error:memberError.message},{status:400});
   const trialEnd=selected==="trial"?new Date(Date.now()+10*24*60*60*1000).toISOString():null;
   await supabase.from("subscriptions").insert({organization_id:org.id,plan:selected,seat_count:1,status:selected==="trial"?"trial":"active",trial_started_at:selected==="trial"?new Date().toISOString():null,trial_ends_at:trialEnd,current_period_end:trialEnd});
+  if(selected!=="trial"){
+    try{const admin=createAdminClient();await createPlanProforma({admin,organization:{id:org.id,name,pib:String(body.pib||"").trim()||null,address:String(body.address||"").trim()||null},plan:selected,seats:1,recipientEmail:user.email||undefined,appBillingUrl:new URL("/app/billing",request.url).toString()});}catch{}
+  }
   return NextResponse.json({id:org.id});
 }

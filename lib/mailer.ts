@@ -14,14 +14,23 @@ export async function sendClientInvite(opts:{to:string;accountingOffice:string;c
   });
 }
 
-async function sendEmail(opts:{to:string;subject:string;html:string}){
+export async function sendBillingInvoiceEmail(opts:{to:string;organizationName:string;invoiceNumber:string;plan:string;totalAmount:number;billingUrl:string;pdf:Buffer}){
+  return sendEmail({
+    to:opts.to,
+    subject:`FiscalBox predracun ${opts.invoiceNumber} · ${opts.organizationName}`,
+    html:`<p>Postovani,</p><p>za firmu <strong>${escapeHtml(opts.organizationName)}</strong> kreiran je FiscalBox predracun za paket <strong>${escapeHtml(opts.plan.toUpperCase())}</strong>.</p><p>Ukupan iznos sa PDV: <strong>${new Intl.NumberFormat('sr-RS',{style:'currency',currency:'RSD'}).format(opts.totalAmount)}</strong>.</p><p>Predracun je u PDF prilogu.${opts.billingUrl?` Arhivu mozete otvoriti i u <a href="${escapeHtml(opts.billingUrl)}">FiscalBox → Moji racuni</a>.`:''}</p><p style="font-size:12px;color:#68736e">Trenutno predracun izdaje demo firma FiscalBox; produkcioni podaci izdavaoca ce biti zamenjeni pre komercijalnog pustanja.</p>`,
+    attachments:[{filename:`${opts.invoiceNumber}.pdf`,content:opts.pdf.toString('base64')}]
+  });
+}
+
+async function sendEmail(opts:{to:string;subject:string;html:string;attachments?:Array<{filename:string;content:string}>}){
   const key=process.env.RESEND_API_KEY;
   const from=process.env.APP_EMAIL_FROM;
   if(!key||!from||!opts.to) return {sent:false,configured:false};
   const response=await fetch('https://api.resend.com/emails',{
     method:'POST',
     headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-    body:JSON.stringify({from,to:[opts.to],subject:opts.subject,html:opts.html})
+    body:JSON.stringify({from,to:[opts.to],subject:opts.subject,html:opts.html,attachments:opts.attachments})
   });
   return {sent:response.ok,configured:true,status:response.status};
 }
