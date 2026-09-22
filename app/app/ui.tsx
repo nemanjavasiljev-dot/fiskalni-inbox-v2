@@ -211,7 +211,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
           {logoAvailable?<img className="company-logo-image" src={`/api/org/logo?organization_id=${activeOrg.organization_id}&v=${logoVersion}`} alt={`Logo ${activeOrg.name}`}/>:<div className="company-logo-placeholder">{String(activeOrg.name||"F").slice(0,1).toUpperCase()}</div>}
           {isCompanyUser&&<><button className="company-logo-edit" type="button" onClick={()=>logoInputRef.current?.click()} title="Dodaj ili promeni logo"><ImagePlus size={16}/></button><input ref={logoInputRef} hidden type="file" accept="image/*" onChange={e=>uploadLogo(e.target.files?.[0])}/></>}
         </div>}
-        <div><span className="pill">{role}</span><h1>{activeOrg?.name||"Fiskalni Inbox"}</h1><p className="muted">{activeOrg?.pib?`PIB ${activeOrg.pib}`:"Izaberite ili kreirajte firmu."}</p></div>
+        <div><span className="pill">{role}</span><h1>{activeOrg?.name||"FiscalBox"}</h1><p className="muted">{activeOrg?.pib?`PIB ${activeOrg.pib}`:"Izaberite ili kreirajte firmu."}</p></div>
       </div>
       <div className="actions">
         {organizations.length>1&&<select className="select" value={activeOrg?.organization_id||""} onChange={e=>router.push("/app?org="+e.target.value)}>{organizations.map((o:any)=><option value={o.organization_id} key={o.organization_id}>{o.name}</option>)}</select>}
@@ -240,6 +240,6 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   </Shell>;
 }
 
-function Shell({profile,children,hasBottomNav=false}:any){return <div className={`app-shell ${hasBottomNav?"with-bottom-nav":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><span>Fiskalni Inbox</span></a><div className="actions"><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header><main className="container app-main">{children}</main></div>}
+function Shell({profile,children,hasBottomNav=false}:any){return <div className={`app-shell ${hasBottomNav?"with-bottom-nav":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><span>FiscalBox</span></a><div className="actions"><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header><main className="container app-main">{children}</main></div>}
 function Stat({label,value}:any){return <div className="card stat"><span>{label}</span><strong>{value}</strong></div>}
 function Onboarding(){return <div className="card" style={{padding:30,maxWidth:650}}><span className="pill">PRVI KORAK</span><h2>Povežite firmu</h2><p className="muted">Unesite PIB ili matični broj. Kada je APR API konfigurisan, podaci firme se popunjavaju automatski.</p><a className="btn btn-primary" href="/app/setup">Unesi PIB / matični broj</a></div>}

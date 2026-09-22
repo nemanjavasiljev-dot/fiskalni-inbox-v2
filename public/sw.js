@@ -1,4 +1,4 @@
-const CACHE='fiskalni-inbox-public-v1';
+const CACHE='fiscalbox-public-v1';
 const PUBLIC_SHELL=['/','/login','/register','/icons/icon-192.png','/icons/icon-512.png'];
 self.addEventListener('install',event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE).then(c=>c.addAll(PUBLIC_SHELL)).catch(()=>{}))});
 self.addEventListener('activate',event=>{event.waitUntil(self.clients.claim())});

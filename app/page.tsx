@@ -7,7 +7,7 @@ export default function Landing() {
       <header className="nav">
         <div className="container navin">
           <Link className="brand" href="/">
-            <span className="logo">F</span><span>Fiskalni Inbox</span>
+            <span className="logo">F</span><span>FiscalBox</span>
           </Link>
           <nav className="navlinks">
             <a href="#kako">Kako radi</a>
@@ -26,13 +26,10 @@ export default function Landing() {
         <section className="hero">
           <div className="container hero-grid">
             <div>
-              <span className="pill">DIGITALNI INBOX ZA FISKALNE RAČUNE</span>
-              <h1>Račun od kase do knjigovođe za nekoliko sekundi.</h1>
-              <p className="muted">
-                Zaposleni skenira QR kod sa fiskalnog računa. Fiskalni Inbox ga
-                proverava, evidentira i stavlja na raspolaganje firmi i knjigovođi —
-                bez fascikli, slanja fotografija i mesečnog traženja računa.
-              </p>
+              <span className="pill">APLIKACIJA ZA FISKALNE RAČUNE I DOKUMENTA</span>
+              <h1>Manje papira.<br/><span className="hero-accent">Više kontrole.</span></h1>
+              <p className="hero-brand-tagline">Skeniraj. Sačuvaj. Pošalji knjigovođi.</p>
+              <p className="muted hero-brand-copy">FiscalBox povezuje firmu i knjigovođu u jednom sigurnom digitalnom prostoru. Fiskalni računi, dokumenti, pretraga, arhiva i slanje knjigovođi — bez fascikli i mesečnog traženja papira.</p>
               <div className="hero-actions">
                 <Link className="btn btn-primary" href="/register">Registruj se</Link>
                 <Link className="btn btn-accent" href="/login?demo=1">Isprobaj demo</Link>
@@ -78,12 +75,12 @@ export default function Landing() {
             <div className="section-head"><span className="pill">FUNKCIJE</span><h2>Napravljeno za firmu i knjigovođu.</h2></div>
             <div className="grid features">
               {[
-                ["⌗","QR skeniranje","Brz unos fiskalnog računa direktno sa telefona."],
-                ["✓","Provera računa","Server proverava da QR vodi na dozvoljeni domen Poreske uprave."],
-                ["⌕","Pretraga","Dobavljač, PIB, broj računa, kategorija i period."],
-                ["⇩","CSV izvoz","Podaci spremni za dalju obradu i knjigovodstvo."],
-                ["▧","Štampa / PDF","Print-friendly prikaz svakog računa i mesečnog pregleda."],
-                ["◎","Više klijenata","Knjigovođa iz jednog naloga pristupa svim dodeljenim firmama."]
+                ["⌗","Skeniraj","Fiskalne račune u sekundi, direktno sa telefona."],
+                ["⇧","Sačuvaj","Računi i dokumenti su bezbedno sačuvani na jednom mestu."],
+                ["➤","Pošalji knjigovođi","Ručno ili automatski prosledi račun i dokumente knjigovođi."],
+                ["✓","Pouzdano","Privatni podaci, kontrolisan pristup i pregled statusa."],
+                ["⌕","Pretraga i arhiva","Dobavljač, PIB, kategorija, period i mesečna arhiva."],
+                ["◎","Firma + knjigovođa","Jedna aplikacija za svakodnevni rad obe strane."]
               ].map(([i,t,d]) => (
                 <div className="card feature" key={t}><div className="icon">{i}</div><h3>{t}</h3><p>{d}</p></div>
               ))}
@@ -124,7 +121,7 @@ export default function Landing() {
         <section className="section">
           <div className="container">
             <div className="card" style={{padding:32,display:"flex",alignItems:"center",justifyContent:"space-between",gap:24,flexWrap:"wrap"}}>
-              <div><span className="pill">DESKTOP APP</span><h2 style={{margin:"10px 0 6px"}}>Fiskalni Inbox kao aplikacija na računaru.</h2><p className="muted" style={{margin:0}}>Instalacija je dostupna kroz Chrome, Edge i Firefox Web Apps na podržanom Windows-u.</p></div>
+              <div><span className="pill">DESKTOP APP</span><h2 style={{margin:"10px 0 6px"}}>FiscalBox kao aplikacija na računaru.</h2><p className="muted" style={{margin:0}}>Instalacija je dostupna kroz Chrome, Edge i Firefox Web Apps na podržanom Windows-u.</p></div>
               <InstallAppButton/>
             </div>
           </div>
@@ -132,13 +129,13 @@ export default function Landing() {
 
         <div className="container">
           <div className="cta">
-            <div><h2>Probaj Fiskalni Inbox.</h2><p style={{color:"#cde1d8"}}>Demo nalozi su odvojeni od produkcionih podataka.</p></div>
+            <div><h2>Probaj FiscalBox.</h2><p style={{color:"#cde1d8"}}>Demo nalozi su odvojeni od produkcionih podataka.</p></div>
             <div className="actions"><Link className="btn btn-primary" href="/register">Registruj se</Link><Link className="btn btn-accent" href="/login?demo=1">Pokreni demo</Link><Link className="btn" href="/login">Prijava</Link></div>
           </div>
         </div>
       </main>
 
-      <footer className="footer"><div className="container">© 2026 Fiskalni Inbox · Digitalna evidencija fiskalnih računa</div></footer>
+      <footer className="footer"><div className="container">© 2026 FiscalBox · Skeniraj. Sačuvaj. Pošalji knjigovođi.</div></footer>
     </>
   );
 }

@@ -8,7 +8,7 @@ export default function LoginPage() {
       <div className="card auth-card">
         <Link className="brand" href="/">
           <span className="logo">F</span>
-          <span>Fiskalni Inbox</span>
+          <span>FiscalBox</span>
         </Link>
         <h1>Prijava</h1>
         <p className="muted">Prijavite se korisničkim imenom i lozinkom.</p>

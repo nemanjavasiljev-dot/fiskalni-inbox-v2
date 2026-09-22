@@ -21,7 +21,7 @@ export async function POST(request:Request){
   if(!invite.email) return NextResponse.json({error:'Za aktivaciju naloga potreban je email. Kontaktirajte knjigovođu.'},{status:400});
 
   const {data:existingProfile}=await admin.from('profiles').select('user_id,username').eq('auth_email',String(invite.email).toLowerCase()).maybeSingle();
-  if(existingProfile) return NextResponse.json({error:'Ovaj email već ima Fiskalni Inbox nalog. Prijavite se postojećim nalogom i kontaktirajte knjigovođu.'},{status:409});
+  if(existingProfile) return NextResponse.json({error:'Ovaj email već ima FiscalBox nalog. Prijavite se postojećim nalogom i kontaktirajte knjigovođu.'},{status:409});
 
   const snap:any=invite.company_snapshot||{};
   const base=cleanUsername(`firma_${invite.company_pib}`);

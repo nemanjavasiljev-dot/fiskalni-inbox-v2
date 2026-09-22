@@ -1,4 +1,4 @@
-# Fiskalni Inbox V4.1 — dodatak na V4
+# FiscalBox V4.1 — dodatak na V4
 
 ## Šta dodaje
 - QR račun se odmah pojavi na listi nakon uspešnog očitavanja.

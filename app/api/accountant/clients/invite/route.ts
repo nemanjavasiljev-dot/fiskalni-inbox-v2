@@ -85,7 +85,7 @@ export async function POST(request:Request){
     try{emailResult=await sendClientInvite({to:email,accountingOffice:office.name,companyName,inviteUrl});}catch{}
   }
   if(channel==='sms'||channel==='both'){
-    try{smsResult=await sendSms({to:phone,body:`${office.name} vas poziva u Fiskalni Inbox za ${companyName}. Aktivacija: ${inviteUrl}`});}catch{}
+    try{smsResult=await sendSms({to:phone,body:`${office.name} vas poziva u FiscalBox za ${companyName}. Aktivacija: ${inviteUrl}`});}catch{}
   }
   await admin.from('client_invitations').update({sent_at:(emailResult.sent||smsResult.sent)?new Date().toISOString():null}).eq('id',invite.id);
   return NextResponse.json({ok:true,invite_id:invite.id,invite_url:inviteUrl,company:snapshot,email:emailResult,sms:smsResult,apr_configured:aprConfigured});

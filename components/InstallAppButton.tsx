@@ -19,7 +19,7 @@ export default function InstallAppButton(){
     if(installed){setHelp('Aplikacija je već instalirana na ovom uređaju.');return;}
     if(promptEvent){await promptEvent.prompt();const choice=await promptEvent.userChoice;if(choice.outcome==='accepted')setInstalled(true);setPromptEvent(null);return;}
     const ua=navigator.userAgent.toLowerCase();
-    if(ua.includes('firefox')) setHelp('Firefox za Windows: kliknite Web apps ikonicu u adresnoj liniji i dodajte Fiskalni Inbox kao web aplikaciju. Potreban je Firefox 143+ (150+ ako je instaliran iz Microsoft Store-a).');
+    if(ua.includes('firefox')) setHelp('Firefox za Windows: kliknite Web apps ikonicu u adresnoj liniji i dodajte FiscalBox kao web aplikaciju. Potreban je Firefox 143+ (150+ ako je instaliran iz Microsoft Store-a).');
     else if(ua.includes('edg')) setHelp('Edge: otvorite meni … → Apps → Install this site as an app.');
     else setHelp('Chrome: otvorite meni ⋮ → Cast, save and share → Install page as app, ili kliknite Install ikonicu u adresnoj liniji.');
   }
