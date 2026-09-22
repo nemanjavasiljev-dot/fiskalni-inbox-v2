@@ -7,6 +7,7 @@ import QrScanner from "@/components/QrScanner";
 import UserBottomNav from "@/components/UserBottomNav";
 import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 import { RECEIPT_CATEGORIES } from "@/lib/receipt-category";
+import AccountantHome from "./accountant-home";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short"}).format(new Date(v)):"—";
@@ -18,7 +19,7 @@ function monthDueDate(){
 }
 function monthLabel(){return new Intl.DateTimeFormat("sr-RS",{month:"long",year:"numeric"}).format(new Date());}
 
-export default function Dashboard({profile,organizations,activeOrg,receipts,master}:any) {
+export default function Dashboard({profile,organizations,activeOrg,receipts,master,accountantOverview}:any) {
   const router=useRouter();
   const [receiptList,setReceiptList]=useState<any[]>(receipts||[]);
   const [scan,setScan]=useState(false);
@@ -66,6 +67,10 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       return [r.merchant_name,r.merchant_pib,r.invoice_number,r.category,r.note,r.payment_method].some(v=>String(v||"").toLowerCase().includes(q));
     });
   },[receiptList,query,categoryFilter]);
+
+  if (accountantOverview && profile.global_role!=="master_admin") {
+    return <AccountantHome profile={profile} organizations={organizations.filter((o:any)=>o.role==="accountant")} overview={accountantOverview}/>;
+  }
 
   if (profile.global_role==="master_admin" && master) {
     const orgMap=new Map<string,any>(master.organizations.map((o:any)=>[String(o.id),o]));

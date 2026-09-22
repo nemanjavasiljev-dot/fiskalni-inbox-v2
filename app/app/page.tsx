@@ -21,8 +21,33 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
   }));
   const activeOrg = params.org ? orgs.find((x:any)=>x.organization_id===params.org) : orgs[0];
 
+  let accountantOverview:any = null;
+  const accountantOrgs = orgs.filter((o:any)=>o.role === "accountant");
+  const accountantOnly = accountantOrgs.length > 0 && orgs.every((o:any)=>o.role === "accountant");
+  if (accountantOnly && profile.global_role !== "master_admin") {
+    const orgIds = accountantOrgs.map((o:any)=>o.organization_id);
+    const [{data:allReceipts},{data:allDocuments},{data:receiptStatuses},{data:documentStatuses}] = await Promise.all([
+      supabase.from("receipts")
+        .select("id,organization_id,merchant_name,merchant_pib,invoice_number,sdc_time,total_amount,total_tax,category,sent_to_accountant_at,created_at")
+        .in("organization_id",orgIds).not("sent_to_accountant_at","is",null)
+        .order("sent_to_accountant_at",{ascending:false}).limit(2000),
+      supabase.from("documents")
+        .select("id,organization_id,file_name,mime_type,size_bytes,source,status,sent_at,created_at")
+        .in("organization_id",orgIds).eq("status","sent")
+        .order("sent_at",{ascending:false}).limit(2000),
+      supabase.from("accountant_receipt_status").select("*").eq("accountant_user_id",user.id),
+      supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id)
+    ]);
+    accountantOverview = {
+      receipts: allReceipts || [],
+      documents: allDocuments || [],
+      receiptStatuses: receiptStatuses || [],
+      documentStatuses: documentStatuses || []
+    };
+  }
+
   let receipts:any[] = [];
-  if (activeOrg) {
+  if (activeOrg && !accountantOnly) {
     let query = supabase.from("receipts")
       .select("*").eq("organization_id",activeOrg.organization_id)
       .order("created_at",{ascending:false}).limit(250);
@@ -42,5 +67,5 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[]};
   }
 
-  return <Dashboard profile={profile} organizations={orgs} activeOrg={activeOrg||null} receipts={receipts} master={master} />;
+  return <Dashboard profile={profile} organizations={orgs} activeOrg={activeOrg||null} receipts={receipts} master={master} accountantOverview={accountantOverview} />;
 }
