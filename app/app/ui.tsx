@@ -43,10 +43,20 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       const seats=master.members.filter((m:any)=>m.organization_id===o.id && (m.role==="owner"||m.role==="employee")).length;
       companyUsersByOrg.set(o.id,Math.max(1,seats));
     });
-    const accountantIds=[...new Set(master.members.filter((m:any)=>m.role==="accountant").map((m:any)=>String(m.user_id)))];
+    const accountantIds: string[] = Array.from(
+  new Set<string>(
+    (master.members ?? [])
+      .filter((m: any) => m.role === "accountant")
+      .map((m: any) => String(m.user_id))
+  )
+);
     const accountants=accountantIds.map((id:string)=>{
       const assignments=master.members.filter((m:any)=>m.role==="accountant"&&String(m.user_id)===id);
-      const orgIds=[...new Set(assignments.map((m:any)=>String(m.organization_id)))];
+      const orgIds: string[] = Array.from(
+  new Set<string>(
+    assignments.map((m: any) => String(m.organization_id))
+  )
+);
       const clients=orgIds.map((orgId:string)=>orgMap.get(orgId)).filter(Boolean);
       const users=orgIds.reduce((sum:number,orgId:string)=>sum+(companyUsersByOrg.get(orgId)||0),0);
       const p:any=profileMap.get(id)||{};
