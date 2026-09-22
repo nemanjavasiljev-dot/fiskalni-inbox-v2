@@ -4,6 +4,7 @@ import { Archive, Bell, CalendarDays, Download, FileCheck2, FileText, Plus, Rece
 import { useRouter } from "next/navigation";
 import BrandWordmark from "@/components/BrandWordmark";
 import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
+import PushNotificationOptIn from "@/components/PushNotificationOptIn";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short",timeStyle:"short"}).format(new Date(v)):"—";
@@ -82,7 +83,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
   ].sort((a:any,b:any)=>new Date(b.date).getTime()-new Date(a.date).getTime()).slice(0,10);
 
   return <div className="app-shell accountant-shell">
-    <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a><div className="actions"><button className="btn notification-button" onClick={()=>setNotificationsOpen(v=>!v)}><Bell size={17}/>{notificationCount>0&&<span>{notificationCount}</span>}</button><a className="btn" href="/app/accountant/settings"><Settings size={16}/> Podešavanja</a><span className="muted accountant-username">{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>
+    <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a><div className="actions"><PushNotificationOptIn/><button className="btn notification-button" onClick={()=>setNotificationsOpen(v=>!v)}><Bell size={17}/>{notificationCount>0&&<span>{notificationCount}</span>}</button><a className="btn" href="/app/accountant/settings"><Settings size={16}/> Podešavanja</a><span className="muted accountant-username">{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>
     <div className="accountant-desktop-layout"><AccountantDesktopMenu isAdmin={Boolean(context?.isAdmin)}/><main className="app-main accountant-main">
       <div className="app-head accountant-head-main"><div><span className="pill">{context?.isAdmin?"ADMIN KNJIGOVOĐA":"KNJIGOVOĐA"}</span><h1>Radni pregled</h1><p className="muted">{context?.office?.name&&<><b>{context.office.name}</b> · </>}podrazumevano je prikazan tekući mesec: <b>{currentMonthLabel()}</b>.</p></div><div className="period-switch"><button className={period==="month"?"active":""} onClick={()=>setPeriod("month")}>Tekući mesec</button><button className={period==="total"?"active":""} onClick={()=>setPeriod("total")}>Ukupno</button></div></div>
 

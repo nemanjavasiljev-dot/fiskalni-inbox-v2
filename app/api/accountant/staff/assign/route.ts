@@ -7,8 +7,10 @@ export async function POST(request:Request){
   const {accounting_organization_id,employee_user_id,client_ids}=await request.json();
   const officeId=String(accounting_organization_id||'');const employeeId=String(employee_user_id||'');
   const clients:string[]=Array.isArray(client_ids)?Array.from(new Set<string>((client_ids as unknown[]).map((x)=>String(x)).filter(Boolean))):[];
-  const {data:office}=await supabase.from('organizations').select('owner_user_id,organization_type').eq('id',officeId).maybeSingle();
-  if(!office||office.organization_type!=='accounting'||office.owner_user_id!==user.id)return NextResponse.json({error:'Samo admin može dodeljivati klijente.'},{status:403});
+  const {data:membership}=await supabase.from('organization_members').select('accounting_access_role,organizations(owner_user_id,organization_type)').eq('organization_id',officeId).eq('user_id',user.id).maybeSingle();
+  const office:any=(membership as any)?.organizations;
+  const isAdmin=office?.organization_type==='accounting'&&(office?.owner_user_id===user.id||(membership as any)?.accounting_access_role==='admin');
+  if(!isAdmin)return NextResponse.json({error:'Samo admin može dodeljivati klijente.'},{status:403});
   const admin=createAdminClient();
   const {data:employeeMembership}=await admin.from('organization_members').select('role').eq('organization_id',officeId).eq('user_id',employeeId).maybeSingle();
   if(employeeMembership?.role!=='employee')return NextResponse.json({error:'Izabrani korisnik nije zaposleni ove agencije.'},{status:400});

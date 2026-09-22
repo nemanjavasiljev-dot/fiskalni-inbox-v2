@@ -12,7 +12,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   const { data:memberships } = await supabase
     .from("organization_members")
-    .select("organization_id,role,organizations(id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status,organization_type,trial_ends_at,accountant_pib_pending,accountant_contact_email,logo_path,receipt_send_schedule,last_auto_receipt_send_at,owner_user_id,contact_email,contact_phone)")
+    .select("id,organization_id,role,accounting_access_role,organizations(id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status,organization_type,trial_ends_at,accountant_pib_pending,accountant_contact_email,logo_path,receipt_send_schedule,last_auto_receipt_send_at,owner_user_id,contact_email,contact_phone,service_block_reason,service_blocked_at)")
     .eq("user_id",user.id);
 
   const params = await searchParams;
@@ -43,7 +43,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
         supabase.from("client_invitations").select("id,company_pib,company_name,email,phone,invite_channel,status,expires_at,created_at,sent_at").eq("accounting_organization_id",officeId).eq("status","pending").order("created_at",{ascending:false}).limit(100)
       ]);
       let staff:any[]=[];let assignments:any[]=[];
-      const isAdmin=accountingOffice.role==="owner" && accountingOffice.owner_user_id===user.id;
+      const isAdmin=(accountingOffice.role==="owner" && accountingOffice.owner_user_id===user.id) || accountingOffice.accounting_access_role==="admin";
       if(isAdmin){
         const {data:staffMemberships}=await supabase.from("organization_members").select("user_id,role").eq("organization_id",officeId).in("role",["owner","employee"]);
         const ids=(staffMemberships||[]).map((m:any)=>m.user_id);
@@ -66,13 +66,16 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   let master:any = null;
   if (profile.global_role === "master_admin") {
-    const [{data:organizations},{data:allMembers},{data:allProfiles},{data:allReceipts}] = await Promise.all([
+    const [{data:organizations},{data:allMembers},{data:allProfiles},{data:allReceipts},{data:billingInvoices},{data:payouts},{data:rewards}] = await Promise.all([
       supabase.from("organizations").select("*").order("created_at",{ascending:false}),
-      supabase.from("organization_members").select("organization_id,user_id,role"),
+      supabase.from("organization_members").select("id,organization_id,user_id,role,accounting_access_role"),
       supabase.from("profiles").select("user_id,username,full_name,auth_email,global_role,created_at"),
-      supabase.from("receipts").select("id,organization_id,created_at,sent_to_accountant_at")
+      supabase.from("receipts").select("id,organization_id,created_at,sent_to_accountant_at"),
+      supabase.from("billing_invoices").select("*").order("issued_at",{ascending:false}).limit(3000),
+      supabase.from("accountant_payouts").select("*").order("period_month",{ascending:false}).limit(1000),
+      supabase.from("accountant_rewards").select("*").order("created_at",{ascending:false}).limit(1000)
     ]);
-    master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[]};
+    master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[],billingInvoices:billingInvoices||[],payouts:payouts||[],rewards:rewards||[]};
   }
 
   return <Dashboard profile={profile} organizations={orgs} activeOrg={activeOrg||null} receipts={receipts} master={master} accountantOverview={accountantOverview} accountantContext={accountantContext} />;

@@ -9,6 +9,8 @@ import BrandWordmark from "@/components/BrandWordmark";
 import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 import { RECEIPT_CATEGORIES } from "@/lib/receipt-category";
 import AccountantHome from "./accountant-home";
+import MasterAdmin from "./master-admin";
+import PushNotificationOptIn from "@/components/PushNotificationOptIn";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short"}).format(new Date(v)):"—";
@@ -74,6 +76,11 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       return [r.merchant_name,r.merchant_pib,r.invoice_number,r.category,r.note,r.payment_method].some(v=>String(v||"").toLowerCase().includes(q));
     });
   },[receiptList,query,categoryFilter]);
+
+  if (profile.global_role==="master_admin" && master) return <MasterAdmin profile={profile} master={master}/>;
+
+  if (accountantContext?.office?.status==="paused") return <ServiceBlocked profile={profile} reason={accountantContext.office.service_block_reason}/>;
+  if (activeOrg?.status==="paused" && profile.global_role!=="master_admin") return <ServiceBlocked profile={profile} reason={activeOrg.service_block_reason}/>;
 
   if (accountantOverview && profile.global_role!=="master_admin") {
     return <AccountantHome profile={profile} organizations={organizations.filter((o:any)=>o.role==="accountant")} overview={accountantOverview} context={accountantContext}/>;
@@ -241,6 +248,8 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   </Shell>;
 }
 
-function Shell({profile,children,hasBottomNav=false}:any){return <div className={`app-shell ${hasBottomNav?"with-bottom-nav":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><div className="actions"><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header><main className="container app-main">{children}</main></div>}
+function Shell({profile,children,hasBottomNav=false}:any){return <div className={`app-shell ${hasBottomNav?"with-bottom-nav":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><div className="actions"><PushNotificationOptIn/><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header><main className="container app-main">{children}</main></div>}
+function ServiceBlocked({profile,reason}:any){return <div className="app-shell"><header className="appbar"><div className="container appbar-in"><a className="brand" href="/"><span className="logo">F</span><BrandWordmark/></a><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></header><main className="container app-main"><div className="card service-blocked"><span className="pill">USLUGA BLOKIRANA</span><h1>FiscalBox pristup je privremeno blokiran</h1><p>{reason||"Obratite se FiscalBox administratoru radi ponovne aktivacije usluge."}</p><small>Nalog: {profile.username}</small></div></main></div>}
+
 function Stat({label,value}:any){return <div className="card stat"><span>{label}</span><strong>{value}</strong></div>}
 function Onboarding(){return <div className="card" style={{padding:30,maxWidth:650}}><span className="pill">PRVI KORAK</span><h2>Povežite firmu</h2><p className="muted">Unesite PIB ili matični broj. Kada je APR API konfigurisan, podaci firme se popunjavaju automatski.</p><a className="btn btn-primary" href="/app/setup">Unesi PIB / matični broj</a></div>}
