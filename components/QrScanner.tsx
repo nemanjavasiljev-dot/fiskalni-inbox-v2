@@ -4,7 +4,7 @@ import jsQR from "jsqr";
 import { useEffect, useRef, useState } from "react";
 
 export default function QrScanner({ organizationId, onDone, demoMode = false }:{
-  organizationId?:string; onDone:()=>void; demoMode?:boolean;
+  organizationId?:string; onDone:(result?:any)=>void; demoMode?:boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,7 +69,8 @@ export default function QrScanner({ organizationId, onDone, demoMode = false }:{
     streamRef.current?.getTracks().forEach(t=>t.stop());
 
     if (demoMode) {
-      setMessage("QR je uspešno očitan. Demo režim ne upisuje račun u stvarnu bazu.");
+      setMessage("QR je očitan i demo račun je dodat na listu.");
+      setTimeout(()=>onDone({demo:true,qr}),500);
       return;
     }
 
@@ -79,7 +80,7 @@ export default function QrScanner({ organizationId, onDone, demoMode = false }:{
       return;
     }
 
-    setMessage("Proveravam i čuvam račun…");
+    setMessage("Proveravam, kategorizujem i čuvam račun…");
     try {
       const r = await fetch("/api/receipts/scan",{
         method:"POST",headers:{"Content-Type":"application/json"},
@@ -87,8 +88,8 @@ export default function QrScanner({ organizationId, onDone, demoMode = false }:{
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Greška.");
-      setMessage(d.duplicate ? "Račun je već u bazi." : "Račun je sačuvan u bazi.");
-      setTimeout(onDone,800);
+      setMessage(d.duplicate ? "Račun je već u bazi." : `Račun je dodat: ${d.receipt?.category || "Ostalo"}.`);
+      setTimeout(()=>onDone(d),450);
     } catch(e:any) {
       setMessage(e.message || "Skeniranje nije uspelo.");
       setSaving(false);
@@ -107,6 +108,5 @@ export default function QrScanner({ organizationId, onDone, demoMode = false }:{
 
     <div className="field"><label>Ručni QR link</label><input className="input mono" value={manual} onChange={e=>setManual(e.target.value)} placeholder="https://..." /></div>
     <button className="btn btn-primary" style={{width:"100%",marginTop:10}} disabled={!manual||saving} onClick={()=>save(manual)}>{demoMode ? "Očitaj link" : "Proveri i sačuvaj"}</button>
-    {demoMode && detected && <button className="btn" style={{width:"100%",marginTop:8}} onClick={onDone}>Zatvori demo skener</button>}
   </>;
 }

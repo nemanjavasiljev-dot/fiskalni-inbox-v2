@@ -12,20 +12,22 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   const { data:memberships } = await supabase
     .from("organization_members")
-    .select("organization_id,role,organizations(id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status)")
+    .select("organization_id,role,organizations(id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status,logo_path,receipt_send_schedule,last_auto_receipt_send_at)")
     .eq("user_id",user.id);
 
   const params = await searchParams;
   const orgs = (memberships||[]).map((m:any)=>({
     organization_id:m.organization_id,role:m.role,...m.organizations
   }));
-  let activeOrg = params.org ? orgs.find((x:any)=>x.organization_id===params.org) : orgs[0];
+  const activeOrg = params.org ? orgs.find((x:any)=>x.organization_id===params.org) : orgs[0];
 
   let receipts:any[] = [];
   if (activeOrg) {
-    const { data } = await supabase.from("receipts")
+    let query = supabase.from("receipts")
       .select("*").eq("organization_id",activeOrg.organization_id)
-      .order("created_at",{ascending:false}).limit(200);
+      .order("created_at",{ascending:false}).limit(250);
+    if (activeOrg.role === "accountant") query = query.not("sent_to_accountant_at","is",null);
+    const { data } = await query;
     receipts = data || [];
   }
 
@@ -35,7 +37,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
       supabase.from("organizations").select("*").order("created_at",{ascending:false}),
       supabase.from("organization_members").select("organization_id,user_id,role"),
       supabase.from("profiles").select("user_id,username,full_name,auth_email,global_role,created_at"),
-      supabase.from("receipts").select("id,organization_id,created_at")
+      supabase.from("receipts").select("id,organization_id,created_at,sent_to_accountant_at")
     ]);
     master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[]};
   }
