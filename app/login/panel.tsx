@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 const DEMO: Record<string, { password: string; role: string }> = {
   user: { password: "user", role: "company" },
@@ -15,8 +15,6 @@ export default function LoginPanel() {
   const [error,setError] = useState("");
   const [busy,setBusy] = useState(false);
   const router = useRouter();
-  const params = useSearchParams();
-  const plan = params.get("plan") || "basic";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,10 +54,8 @@ export default function LoginPanel() {
         <button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={busy}>{busy ? "Prijava…" : "Prijavi se"}</button>
       </form>
 
-      <div className="divider">ili</div>
-      <a className="btn" style={{width:"100%"}} href={"/auth/google?plan="+encodeURIComponent(plan)}>
-        <span style={{fontWeight:900}}>G</span> Registruj se / prijavi preko Google-a
-      </a>
+      <div className="divider">novi korisnik</div>
+      <a className="btn btn-accent" style={{width:"100%"}} href="/register">Registruj se</a>
 
       <div className="demo-box">
         <b>Demo nalozi</b><br/>

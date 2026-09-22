@@ -11,7 +11,7 @@ export default function LoginPage() {
           <span>Fiskalni Inbox</span>
         </Link>
         <h1>Prijava</h1>
-        <p className="muted">Prijavite se korisničkim imenom i lozinkom ili Google nalogom.</p>
+        <p className="muted">Prijavite se korisničkim imenom i lozinkom.</p>
         <Suspense fallback={<div>Učitavanje prijave...</div>}>
           <LoginPanel />
         </Suspense>

@@ -15,6 +15,7 @@ export default function Landing() {
           </nav>
           <div className="actions">
             <Link className="btn" href="/login">Prijava</Link>
+            <Link className="btn btn-primary" href="/register">Registruj se</Link>
             <Link className="btn btn-accent" href="/login?demo=1">Pokreni demo</Link>
           </div>
         </div>
@@ -32,7 +33,8 @@ export default function Landing() {
                 bez fascikli, slanja fotografija i mesečnog traženja računa.
               </p>
               <div className="hero-actions">
-                <Link className="btn btn-primary" href="/login?demo=1">Isprobaj demo</Link>
+                <Link className="btn btn-primary" href="/register">Registruj se</Link>
+                <Link className="btn btn-accent" href="/login?demo=1">Isprobaj demo</Link>
                 <a className="btn" href="#cene">Pogledaj pretplate</a>
               </div>
             </div>
@@ -98,16 +100,21 @@ export default function Landing() {
         <section id="cene" className="section">
           <div className="container">
             <div className="section-head" style={{textAlign:"center",margin:"0 auto 32px"}}><span className="pill">PRETPLATE</span><h2>Jednostavna cena po korisniku.</h2><p className="muted">Mesečna pretplata. Cena se množi brojem aktivnih korisnika naloga.</p></div>
-            <div className="grid pricing">
+            <div className="grid pricing pricing-three">
+              <div className="card price">
+                <span className="tag">10 DANA</span><h3>Probni</h3><div className="price-number">0 RSD</div><div className="muted">10 dana besplatno</div>
+                <ul><li>Bez obaveze</li><li>QR i fajlovi</li><li>Povezivanje knjigovođe</li><li>Test svih osnovnih funkcija</li></ul>
+                <Link href="/register" className="btn btn-primary" style={{width:"100%"}}>Počni besplatno</Link>
+              </div>
               <div className="card price">
                 <h3>Basic</h3><div className="price-number">1.250 RSD</div><div className="muted">po korisniku / mesečno</div>
                 <ul><li>QR unos računa</li><li>Baza i pretraga</li><li>Kategorije i napomene</li><li>CSV izvoz</li><li>Pristup knjigovođi</li></ul>
-                <Link href="/login?plan=basic" className="btn btn-primary" style={{width:"100%"}}>Izaberi Basic</Link>
+                <Link href="/register" className="btn btn-primary" style={{width:"100%"}}>Izaberi Basic</Link>
               </div>
               <div className="card price pop">
                 <span className="tag">PREPORUČENO</span><h3>Premium</h3><div className="price-number">2.000 RSD</div><div className="muted">po korisniku / mesečno</div>
                 <ul><li>Sve iz Basic paketa</li><li>Napredni mesečni pregledi</li><li>Print/PDF paketi</li><li>Više firmi za knjigovođe</li><li>Prioritetna podrška</li></ul>
-                <Link href="/login?plan=premium" className="btn btn-accent" style={{width:"100%"}}>Izaberi Premium</Link>
+                <Link href="/register" className="btn btn-accent" style={{width:"100%"}}>Izaberi Premium</Link>
               </div>
             </div>
           </div>
@@ -116,7 +123,7 @@ export default function Landing() {
         <div className="container">
           <div className="cta">
             <div><h2>Probaj Fiskalni Inbox.</h2><p style={{color:"#cde1d8"}}>Demo nalozi su odvojeni od produkcionih podataka.</p></div>
-            <div className="actions"><Link className="btn btn-accent" href="/login?demo=1">Pokreni demo</Link><Link className="btn" href="/login">Prijava</Link></div>
+            <div className="actions"><Link className="btn btn-primary" href="/register">Registruj se</Link><Link className="btn btn-accent" href="/login?demo=1">Pokreni demo</Link><Link className="btn" href="/login">Prijava</Link></div>
           </div>
         </div>
       </main>

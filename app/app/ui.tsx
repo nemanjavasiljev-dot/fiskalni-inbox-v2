@@ -34,6 +34,10 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   const [sendSchedule,setSendSchedule]=useState(String(activeOrg?.receipt_send_schedule||"manual"));
   const [settingsBusy,setSettingsBusy]=useState(false);
   const [settingsMessage,setSettingsMessage]=useState("");
+  const [accountantLinkPib,setAccountantLinkPib]=useState(String(activeOrg?.accountant_pib_pending||""));
+  const [accountantLinkEmail,setAccountantLinkEmail]=useState(String(activeOrg?.accountant_contact_email||""));
+  const [accountantLinkBusy,setAccountantLinkBusy]=useState(false);
+  const [accountantLinkMessage,setAccountantLinkMessage]=useState("");
   const [logoAvailable,setLogoAvailable]=useState(Boolean(activeOrg?.logo_path));
   const [logoVersion,setLogoVersion]=useState(Date.now());
   const searchRef=useRef<HTMLInputElement>(null);
@@ -42,8 +46,10 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   useEffect(()=>{
     setReceiptList(receipts||[]);
     setSendSchedule(String(activeOrg?.receipt_send_schedule||"manual"));
+    setAccountantLinkPib(String(activeOrg?.accountant_pib_pending||""));
+    setAccountantLinkEmail(String(activeOrg?.accountant_contact_email||""));
     setLogoAvailable(Boolean(activeOrg?.logo_path));
-  },[receipts,activeOrg?.organization_id,activeOrg?.receipt_send_schedule,activeOrg?.logo_path]);
+  },[receipts,activeOrg?.organization_id,activeOrg?.receipt_send_schedule,activeOrg?.accountant_pib_pending,activeOrg?.accountant_contact_email,activeOrg?.logo_path]);
 
   const total=useMemo(()=>receiptList.reduce((s:any,r:any)=>s+Number(r.total_amount||0),0),[receiptList]);
   const tax=useMemo(()=>receiptList.reduce((s:any,r:any)=>s+Number(r.total_tax||0),0),[receiptList]);
@@ -73,30 +79,34 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   }
 
   if (profile.global_role==="master_admin" && master) {
-    const orgMap=new Map<string,any>(master.organizations.map((o:any)=>[String(o.id),o]));
+    const companyOrgs=master.organizations.filter((o:any)=>o.organization_type!=="accounting");
+    const orgMap=new Map<string,any>(companyOrgs.map((o:any)=>[String(o.id),o]));
     const profileMap=new Map<string,any>(master.profiles.map((p:any)=>[String(p.user_id),p]));
     const companyUsersByOrg=new Map<string,number>();
-    master.organizations.forEach((o:any)=>{
+    companyOrgs.forEach((o:any)=>{
       const seats=master.members.filter((m:any)=>m.organization_id===o.id && (m.role==="owner"||m.role==="employee")).length;
       companyUsersByOrg.set(String(o.id),Math.max(1,seats));
     });
-    const accountantIds: string[] = Array.from(new Set<string>(master.members.filter((m:any)=>m.role==="accountant").map((m:any)=>String(m.user_id))));
+    const accountantIds: string[] = Array.from(new Set<string>([
+      ...master.members.filter((m:any)=>m.role==="accountant").map((m:any)=>String(m.user_id)),
+      ...master.profiles.filter((p:any)=>p.global_role==="accountant").map((p:any)=>String(p.user_id))
+    ]));
     const accountants=accountantIds.map((id:string)=>{
       const assignments=master.members.filter((m:any)=>m.role==="accountant"&&String(m.user_id)===id);
       const orgIds: string[] = Array.from(new Set<string>(assignments.map((m:any)=>String(m.organization_id))));
       const clients=orgIds.map((orgId:string)=>orgMap.get(orgId)).filter(Boolean);
-      const users=orgIds.reduce((sum:number,orgId:string)=>sum+(companyUsersByOrg.get(orgId)||0),0);
+      const users=orgIds.reduce((sum:number,orgId:string)=>{const o:any=orgMap.get(orgId); return sum+(o&&o.plan!=="trial"?(companyUsersByOrg.get(orgId)||0):0);},0);
       const p:any=profileMap.get(id)||{};
       return {id,name:p.full_name||p.username||p.auth_email||"Knjigovođa",email:p.auth_email||"",clients,users,payout:users*250};
     }).sort((a:any,b:any)=>b.payout-a.payout);
-    const gross=master.organizations.reduce((sum:number,o:any)=>sum+(companyUsersByOrg.get(String(o.id))||1)*(o.plan==="premium"?2000:1250),0);
+    const gross=companyOrgs.reduce((sum:number,o:any)=>sum+(o.plan==="trial"?0:(companyUsersByOrg.get(String(o.id))||1)*(o.plan==="premium"?2000:1250)),0);
     const payouts=accountants.reduce((sum:number,a:any)=>sum+a.payout,0);
     const profit=gross-payouts;
 
     return <Shell profile={profile}>
       <div className="app-head"><div><span className="pill">MASTER ADMIN</span><h1>Biznis pregled</h1><p className="muted">Obračun za {monthLabel()}. Naknada knjigovođi: 250 RSD po korisniku aplikacije.</p></div></div>
       <div className="grid master-stats">
-        <Stat label="Klijenti" value={master.organizations.length}/>
+        <Stat label="Klijenti" value={companyOrgs.length}/>
         <button className="card stat stat-button" onClick={()=>setShowAccountants((v:boolean)=>!v)}><span>Knjigovođe</span><strong>{accountants.length}</strong><small>klik za listu</small></button>
         <Stat label="Bruto MRR" value={money(gross)}/>
         <Stat label="Naknade knjigovođama" value={money(payouts)}/>
@@ -110,7 +120,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       </div></section>}
 
       <section className="master-section"><div className="section-title"><div><span className="pill">KLIJENTI</span><h2>Pregled firmi</h2></div></div><div className="grid client-grid">
-        {master.organizations.map((o:any)=>{const ms=master.members.filter((m:any)=>m.organization_id===o.id);const rc=master.receipts.filter((r:any)=>r.organization_id===o.id);const users=companyUsersByOrg.get(String(o.id))||1;return <div className="card client" key={o.id}><span className="badge">{String(o.plan||"basic").toUpperCase()}</span><h3>{o.name}</h3><div className="muted">PIB {o.pib||"—"}</div><div className="kpis"><span>RAČUNI<b>{rc.length}</b></span><span>KORISNICI<b>{users}</b></span><span>KNJIGOVOĐE<b>{ms.filter((m:any)=>m.role==="accountant").length}</b></span></div></div>})}
+        {companyOrgs.map((o:any)=>{const ms=master.members.filter((m:any)=>m.organization_id===o.id);const rc=master.receipts.filter((r:any)=>r.organization_id===o.id);const users=companyUsersByOrg.get(String(o.id))||1;return <div className="card client" key={o.id}><span className="badge">{String(o.plan||"basic").toUpperCase()}</span><h3>{o.name}</h3><div className="muted">PIB {o.pib||"—"}</div><div className="kpis"><span>RAČUNI<b>{rc.length}</b></span><span>KORISNICI<b>{users}</b></span><span>KNJIGOVOĐE<b>{ms.filter((m:any)=>m.role==="accountant").length}</b></span></div></div>})}
       </div></section>
     </Shell>;
   }
@@ -160,6 +170,19 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       router.refresh();
     }catch(e:any){setSettingsMessage(e.message||"Podešavanje nije sačuvano.");}
     finally{setSettingsBusy(false);}
+  }
+
+  async function linkAccountant(){
+    if(!activeOrg||accountantLinkBusy) return;
+    setAccountantLinkBusy(true);setAccountantLinkMessage("");
+    try{
+      const r=await fetch("/api/org/accountant-link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({organization_id:activeOrg.organization_id,accountant_pib:accountantLinkPib,accountant_email:accountantLinkEmail})});
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||"Povezivanje nije uspelo.");
+      setAccountantLinkMessage(d.message||"Podešavanje je sačuvano.");
+      router.refresh();
+    }catch(e:any){setAccountantLinkMessage(e.message||"Povezivanje nije uspelo.");}
+    finally{setAccountantLinkBusy(false);}
   }
 
   async function uploadLogo(file?:File){
@@ -212,7 +235,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
     </>}
 
     {scan&&activeOrg&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setScan(false)}}><div className="modal qr-modal"><div className="modal-head"><div><span className="pill">NOVI RAČUN</span><h2>QR skener</h2></div><button className="btn" onClick={()=>setScan(false)}>Zatvori</button></div><p className="muted" style={{marginTop:0}}>Posle očitavanja račun se odmah dodaje na listu i automatski kategorizuje.</p><QrScanner organizationId={activeOrg.organization_id} onDone={onScanDone}/></div></div>}
-    {moreOpen&&isCompanyUser&&<div className="bottom-sheet-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}><div className="bottom-sheet"><div className="bottom-sheet-handle"/><div className="bottom-sheet-head"><div><span className="pill">VIŠE</span><h3>Opcije naloga</h3></div><button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button></div><div className="more-list"><div className="more-info"><span>Firma</span><b>{activeOrg.name}</b></div><div className="more-info"><span>Paket</span><b>{String(activeOrg.plan||"basic").toUpperCase()}</b></div><div className="auto-send-settings"><b>Automatsko slanje knjigovođi</b><p>Izaberite kada da se svi neposlati fiskalni računi automatski proslede knjigovođi.</p><select className="select" value={sendSchedule} onChange={e=>setSendSchedule(e.target.value)}><option value="manual">Isključeno — šaljem ručno</option><option value="weekly">Nedeljno — svakog petka</option><option value="monthly">Mesečno — poslednjeg dana</option></select><button className="btn btn-primary" onClick={saveSendSchedule} disabled={settingsBusy}>{settingsBusy?"Čuvam…":"Sačuvaj raspored"}</button>{settingsMessage&&<small>{settingsMessage}</small>}</div><button className="more-action" onClick={sendNow}>Pošalji račune knjigovođi sada <b>→</b></button><button className="more-action" onClick={openFiles}>Fajlovi <b>→</b></button><a className="more-action" href={`/api/export/csv?organization_id=${activeOrg.organization_id}`}>Izvezi bazu kao CSV <b>→</b></a><a className="more-action" href="/app/setup">Podešavanja firme <b>→</b></a><form method="post" action="/api/auth/logout"><button className="more-action danger" style={{width:"100%"}}>Odjavi se <b>→</b></button></form></div></div></div>}
+    {moreOpen&&isCompanyUser&&<div className="bottom-sheet-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}><div className="bottom-sheet"><div className="bottom-sheet-handle"/><div className="bottom-sheet-head"><div><span className="pill">VIŠE</span><h3>Opcije naloga</h3></div><button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button></div><div className="more-list"><div className="more-info"><span>Firma</span><b>{activeOrg.name}</b></div><div className="more-info"><span>Paket</span><b>{String(activeOrg.plan||"basic").toUpperCase()}</b></div><div className="auto-send-settings"><b>Poveži knjigovođu</b><p>Možete dodati knjigovođu i posle registracije. Unesite njegov PIB; ako još nije u sistemu, unesite i email.</p><input className="input" inputMode="numeric" value={accountantLinkPib} onChange={e=>setAccountantLinkPib(e.target.value.replace(/\D/g,"").slice(0,9))} placeholder="PIB knjigovođe"/><input className="input" type="email" value={accountantLinkEmail} onChange={e=>setAccountantLinkEmail(e.target.value)} placeholder="Email knjigovođe (ako nije registrovan)"/><button className="btn" onClick={linkAccountant} disabled={accountantLinkBusy}>{accountantLinkBusy?"Proveravam…":"Poveži / sačuvaj kontakt"}</button>{accountantLinkMessage&&<small>{accountantLinkMessage}</small>}</div><div className="auto-send-settings"><b>Automatsko slanje knjigovođi</b><p>Izaberite kada da se svi neposlati fiskalni računi automatski proslede knjigovođi.</p><select className="select" value={sendSchedule} onChange={e=>setSendSchedule(e.target.value)}><option value="manual">Isključeno — šaljem ručno</option><option value="weekly">Nedeljno — svakog petka</option><option value="monthly">Mesečno — poslednjeg dana</option></select><button className="btn btn-primary" onClick={saveSendSchedule} disabled={settingsBusy}>{settingsBusy?"Čuvam…":"Sačuvaj raspored"}</button>{settingsMessage&&<small>{settingsMessage}</small>}</div><button className="more-action" onClick={sendNow}>Pošalji račune knjigovođi sada <b>→</b></button><button className="more-action" onClick={openFiles}>Fajlovi <b>→</b></button><a className="more-action" href={`/api/export/csv?organization_id=${activeOrg.organization_id}`}>Izvezi bazu kao CSV <b>→</b></a><a className="more-action" href="/app/setup">Podešavanja firme <b>→</b></a><form method="post" action="/api/auth/logout"><button className="more-action danger" style={{width:"100%"}}>Odjavi se <b>→</b></button></form></div></div></div>}
     {isCompanyUser&&<UserBottomNav active={navActive} onHome={goHome} onSearch={openSearch} onScan={openScanner} onFiles={openFiles} onMore={openMore}/>} 
   </Shell>;
 }

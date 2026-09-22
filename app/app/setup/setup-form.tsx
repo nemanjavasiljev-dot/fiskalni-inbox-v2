@@ -9,7 +9,7 @@ export default function SetupForm(){
   const [lookupBusy,setLookupBusy]=useState(false);
   const [lookupMessage,setLookupMessage]=useState("");
   const [manual,setManual]=useState(false);
-  const [plan,setPlan]=useState("basic");
+  const [plan,setPlan]=useState("trial");
   const [saving,setSaving]=useState(false);
   const [err,setErr]=useState("");
   const [company,setCompany]=useState<any>({name:"",pib:"",registration_number:"",legal_form:"",address:"",municipality:"",activity_code:"",activity_name:"",apr_raw:null});
@@ -55,7 +55,7 @@ export default function SetupForm(){
         <div className="field setup-wide"><label>Adresa sedišta</label><input className="input" value={company.address} onChange={e=>field("address",e.target.value)}/></div>
         <div className="field"><label>Šifra delatnosti</label><input className="input" value={company.activity_code} onChange={e=>field("activity_code",e.target.value)}/></div>
         <div className="field"><label>Naziv delatnosti</label><input className="input" value={company.activity_name} onChange={e=>field("activity_name",e.target.value)}/></div>
-        <div className="field setup-wide"><label>Paket</label><select className="select" value={plan} onChange={e=>setPlan(e.target.value)}><option value="basic">Basic — 1.250 RSD / korisnik</option><option value="premium">Premium — 2.000 RSD / korisnik</option></select></div>
+        <div className="field setup-wide"><label>Paket</label><select className="select" value={plan} onChange={e=>setPlan(e.target.value)}><option value="trial">Probni — 10 dana besplatno</option><option value="basic">Basic — 1.250 RSD / korisnik</option><option value="premium">Premium — 2.000 RSD / korisnik</option></select></div>
       </div>
       {err&&<div className="error">{err}</div>}
       <button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={saving}>{saving?"Kreiram firmu…":"Potvrdi i kreiraj firmu"}</button>

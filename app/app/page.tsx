@@ -12,7 +12,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   const { data:memberships } = await supabase
     .from("organization_members")
-    .select("organization_id,role,organizations(id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status,logo_path,receipt_send_schedule,last_auto_receipt_send_at)")
+    .select("organization_id,role,organizations(id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status,organization_type,trial_ends_at,accountant_pib_pending,accountant_contact_email,logo_path,receipt_send_schedule,last_auto_receipt_send_at)")
     .eq("user_id",user.id);
 
   const params = await searchParams;
@@ -23,27 +23,26 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   let accountantOverview:any = null;
   const accountantOrgs = orgs.filter((o:any)=>o.role === "accountant");
-  const accountantOnly = accountantOrgs.length > 0 && orgs.every((o:any)=>o.role === "accountant");
-  if (accountantOnly && profile.global_role !== "master_admin") {
+  const accountantOnly = profile.global_role === "accountant" && profile.global_role !== "master_admin";
+  if (accountantOnly) {
     const orgIds = accountantOrgs.map((o:any)=>o.organization_id);
-    const [{data:allReceipts},{data:allDocuments},{data:receiptStatuses},{data:documentStatuses}] = await Promise.all([
-      supabase.from("receipts")
-        .select("id,organization_id,merchant_name,merchant_pib,invoice_number,sdc_time,total_amount,total_tax,category,sent_to_accountant_at,created_at")
-        .in("organization_id",orgIds).not("sent_to_accountant_at","is",null)
-        .order("sent_to_accountant_at",{ascending:false}).limit(2000),
-      supabase.from("documents")
-        .select("id,organization_id,file_name,mime_type,size_bytes,source,status,sent_at,created_at")
-        .in("organization_id",orgIds).eq("status","sent")
-        .order("sent_at",{ascending:false}).limit(2000),
-      supabase.from("accountant_receipt_status").select("*").eq("accountant_user_id",user.id),
-      supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id)
-    ]);
-    accountantOverview = {
-      receipts: allReceipts || [],
-      documents: allDocuments || [],
-      receiptStatuses: receiptStatuses || [],
-      documentStatuses: documentStatuses || []
-    };
+    if (orgIds.length > 0) {
+      const [{data:allReceipts},{data:allDocuments},{data:receiptStatuses},{data:documentStatuses}] = await Promise.all([
+        supabase.from("receipts")
+          .select("id,organization_id,merchant_name,merchant_pib,invoice_number,sdc_time,total_amount,total_tax,category,sent_to_accountant_at,created_at")
+          .in("organization_id",orgIds).not("sent_to_accountant_at","is",null)
+          .order("sent_to_accountant_at",{ascending:false}).limit(2000),
+        supabase.from("documents")
+          .select("id,organization_id,file_name,mime_type,size_bytes,source,status,sent_at,created_at")
+          .in("organization_id",orgIds).eq("status","sent")
+          .order("sent_at",{ascending:false}).limit(2000),
+        supabase.from("accountant_receipt_status").select("*").eq("accountant_user_id",user.id),
+        supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id)
+      ]);
+      accountantOverview = {receipts:allReceipts||[],documents:allDocuments||[],receiptStatuses:receiptStatuses||[],documentStatuses:documentStatuses||[]};
+    } else {
+      accountantOverview = {receipts:[],documents:[],receiptStatuses:[],documentStatuses:[]};
+    }
   }
 
   let receipts:any[] = [];
