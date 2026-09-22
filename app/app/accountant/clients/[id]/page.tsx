@@ -16,7 +16,7 @@ export default async function AccountantClientPage({params,searchParams}:{params
   const selectedMonth=parseMonth(sp.month);
 
   const {data:membership}=await supabase.from("organization_members")
-    .select("role,organizations(id,name,pib,registration_number,address,plan)")
+    .select("role,organizations(id,name,pib,registration_number,address,plan,logo_path)")
     .eq("organization_id",id).eq("user_id",user.id).maybeSingle();
   if(!membership||membership.role!=="accountant") notFound();
   const org:any=membership.organizations;

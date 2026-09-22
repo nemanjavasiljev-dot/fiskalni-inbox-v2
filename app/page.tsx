@@ -1,4 +1,5 @@
 import Link from "next/link";
+import InstallAppButton from "@/components/InstallAppButton";
 
 export default function Landing() {
   return (
@@ -116,6 +117,15 @@ export default function Landing() {
                 <ul><li>Sve iz Basic paketa</li><li>Napredni mesečni pregledi</li><li>Print/PDF paketi</li><li>Više firmi za knjigovođe</li><li>Prioritetna podrška</li></ul>
                 <Link href="/register" className="btn btn-accent" style={{width:"100%"}}>Izaberi Premium</Link>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="section">
+          <div className="container">
+            <div className="card" style={{padding:32,display:"flex",alignItems:"center",justifyContent:"space-between",gap:24,flexWrap:"wrap"}}>
+              <div><span className="pill">DESKTOP APP</span><h2 style={{margin:"10px 0 6px"}}>Fiskalni Inbox kao aplikacija na računaru.</h2><p className="muted" style={{margin:0}}>Instalacija je dostupna kroz Chrome, Edge i Firefox Web Apps na podržanom Windows-u.</p></div>
+              <InstallAppButton/>
             </div>
           </div>
         </section>

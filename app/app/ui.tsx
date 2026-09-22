@@ -19,7 +19,7 @@ function monthDueDate(){
 }
 function monthLabel(){return new Intl.DateTimeFormat("sr-RS",{month:"long",year:"numeric"}).format(new Date());}
 
-export default function Dashboard({profile,organizations,activeOrg,receipts,master,accountantOverview}:any) {
+export default function Dashboard({profile,organizations,activeOrg,receipts,master,accountantOverview,accountantContext}:any) {
   const router=useRouter();
   const [receiptList,setReceiptList]=useState<any[]>(receipts||[]);
   const [scan,setScan]=useState(false);
@@ -75,7 +75,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   },[receiptList,query,categoryFilter]);
 
   if (accountantOverview && profile.global_role!=="master_admin") {
-    return <AccountantHome profile={profile} organizations={organizations.filter((o:any)=>o.role==="accountant")} overview={accountantOverview}/>;
+    return <AccountantHome profile={profile} organizations={organizations.filter((o:any)=>o.role==="accountant")} overview={accountantOverview} context={accountantContext}/>;
   }
 
   if (profile.global_role==="master_admin" && master) {

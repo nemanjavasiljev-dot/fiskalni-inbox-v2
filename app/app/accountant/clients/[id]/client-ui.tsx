@@ -48,7 +48,7 @@ export default function ClientWorkspace({organization,selectedMonth,receipts,doc
   }
 
   return <div className="app-shell accountant-shell"><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><span>Fiskalni Inbox · KNJIGO</span></a><a className="btn" href="/app">← Svi klijenti</a></div></header><main className="container app-main">
-    <div className="app-head accountant-client-head"><div><span className="pill">KLIJENT</span><h1>{organization.name}</h1><p className="muted">PIB {organization.pib||"—"} · {organization.address||""}</p></div><label className="archive-select"><span>Obračunski mesec</span><select className="select" value={selectedMonth} onChange={e=>router.push(`/app/accountant/clients/${organization.id}?month=${e.target.value}`)}>{monthOptions.map((m:string)=><option key={m} value={m}>{monthLabel(m)}</option>)}</select></label></div>
+    <div className="app-head accountant-client-head"><div className="client-workspace-identity"><ClientHeaderLogo organization={organization}/><div><span className="pill">KLIJENT</span><h1>{organization.name}</h1><p className="muted">PIB {organization.pib||"—"} · {organization.address||""}</p></div></div><label className="archive-select"><span>Obračunski mesec</span><select className="select" value={selectedMonth} onChange={e=>router.push(`/app/accountant/clients/${organization.id}?month=${e.target.value}`)}>{monthOptions.map((m:string)=><option key={m} value={m}>{monthLabel(m)}</option>)}</select></label></div>
 
     <div className="grid client-period-stats"><MiniStat label="Primljeni računi" value={monthReceipts.length}/><MiniStat label="Preuzeti računi" value={downloadedR}/><MiniStat label="Primljeni dokumenti" value={monthDocuments.length}/><MiniStat label="Preuzeti dokumenti" value={downloadedD}/><MiniStat label="Ulazni PDV" value={money(vat)}/></div>
 
@@ -64,3 +64,5 @@ export default function ClientWorkspace({organization,selectedMonth,receipts,doc
 
 function ItemStatus({status}:any){if(status?.downloaded_at)return <span className="item-state done"><CheckCircle2 size={13}/> PREUZET</span>;if(status?.opened_at)return <span className="item-state opened"><Eye size={13}/> OTVOREN</span>;return <span className="item-state new">NOV / NEPREUZET</span>}
 function MiniStat({label,value}:any){return <div className="card mini-stat"><span>{label}</span><strong>{value}</strong></div>}
+
+function ClientHeaderLogo({organization}:any){const [bad,setBad]=React.useState(false);return <div className="client-header-logo">{organization.logo_path&&!bad?<img src={`/api/org/logo?organization_id=${organization.id}`} onError={()=>setBad(true)} alt=""/>:<span>{String(organization.name||"K").slice(0,1)}</span>}</div>}
