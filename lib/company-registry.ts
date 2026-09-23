@@ -34,12 +34,20 @@ export function digitsOnly(value: unknown) {
   return String(value ?? '').replace(/\D/g, '');
 }
 
+const SERBIAN_CYRILLIC_TO_LATIN: Record<string,string> = {
+  'а':'a','б':'b','в':'v','г':'g','д':'d','ђ':'dj','е':'e','ж':'z','з':'z','и':'i','ј':'j','к':'k','л':'l','љ':'lj','м':'m','н':'n','њ':'nj','о':'o','п':'p','р':'r','с':'s','т':'t','ћ':'c','у':'u','ф':'f','х':'h','ц':'c','ч':'c','џ':'dz','ш':'s'
+};
+
+function transliterateSerbian(value: string) {
+  return Array.from(value.toLowerCase()).map(ch => SERBIAN_CYRILLIC_TO_LATIN[ch] ?? ch).join('');
+}
+
 export function normalizeCompanyName(value: unknown) {
-  return String(value ?? '')
+  return transliterateSerbian(String(value ?? ''))
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9čćžšđ]+/gi, ' ')
+    .replace(/[čćžšđ]/g, ch => ({'č':'c','ć':'c','ž':'z','š':'s','đ':'d'} as Record<string,string>)[ch] || ch)
+    .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }

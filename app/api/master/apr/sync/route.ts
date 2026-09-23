@@ -5,6 +5,7 @@ import { APRSyncService } from '@/lib/apr-sync-service';
 
 export async function POST(request:Request){
   const auth=await requireMaster();if(!auth.ok)return NextResponse.json({error:auth.error},{status:auth.status});
+  if(APRSyncService.sourceMode()==='open-data-bulk')return NextResponse.json({error:'APR Open Data je bulk snapshot. Sinhronizaciju pokrenite kroz GitHub Actions → APR Open Data Sync → Run workflow.'},{status:409});
   if(!APRSyncService.isConfigured())return NextResponse.json({error:'APR web-servis nije konfigurisan. Unesite ugovorene APR .env vrednosti.'},{status:503});
   const body=await request.json().catch(()=>({}));const companyId=String(body.company_id||'');const limit=Math.max(1,Math.min(100,Number(body.limit||50)));
   const admin=createAdminClient();const {data:run}=await admin.from('apr_sync_runs').insert({run_type:'manual',status:'running',requested_by:auth.user.id}).select('id').single();

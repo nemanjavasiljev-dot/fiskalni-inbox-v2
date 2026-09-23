@@ -1,0 +1,26 @@
+name: APR Open Data Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '25 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Import APR company snapshot into Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          APR_OPEN_DATA_URL: https://openapi.apr.gov.rs/api/opendata/companies
+          APR_SYNC_BATCH_SIZE: '750'
+        run: node scripts/apr-sync.mjs

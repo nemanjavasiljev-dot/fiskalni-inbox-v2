@@ -75,7 +75,14 @@ function normalizeCandidate(obj: Record<string, unknown>): AprCompany | null {
 }
 function candidateScore(c: AprCompany) { return (c.registration_number ? 4 : 0) + (c.pib ? 3 : 0) + (c.name ? 2 : 0) + (c.registry_status ? 1 : 0); }
 
-function findLargestObjectArray(input:unknown):Record<string,unknown>[] {
+function rowsFromOpenDataMap(input:unknown):Record<string,unknown>[] {
+  if(!input||typeof input!=='object'||Array.isArray(input))return [];
+  const entries=Object.entries(input as Record<string,unknown>);
+  const keyed=entries.filter(([key,value])=>/^\d{8}$/.test(key)&&value&&typeof value==='object'&&!Array.isArray(value));
+  if(keyed.length<10)return [];
+  return keyed.map(([registrationNumber,value])=>({registrationNumber,...(value as Record<string,unknown>)}));
+}
+function findLargestObjectCollection(input:unknown):Record<string,unknown>[] {
   let best:Record<string,unknown>[]=[];
   const seen=new Set<unknown>();
   function walk(v:unknown){
@@ -86,12 +93,15 @@ function findLargestObjectArray(input:unknown):Record<string,unknown>[] {
       for(const x of v.slice(0,20))walk(x);
       return;
     }
-    for(const x of Object.values(v as Record<string,unknown>))walk(x);
+    const mapRows=rowsFromOpenDataMap(v);
+    if(mapRows.length>best.length)best=mapRows;
+    for(const x of Object.values(v as Record<string,unknown>).slice(0,20))walk(x);
   }
   walk(input);return best;
 }
 function extractCompanies(raw: unknown): AprCompany[] {
-  const rows=Array.isArray(raw)?raw.filter(v=>v&&typeof v==='object'&&!Array.isArray(v)) as Record<string,unknown>[]:findLargestObjectArray(raw);
+  const directMap=rowsFromOpenDataMap(raw);
+  const rows=directMap.length?directMap:Array.isArray(raw)?raw.filter(v=>v&&typeof v==='object'&&!Array.isArray(v)) as Record<string,unknown>[]:findLargestObjectCollection(raw);
   const source=rows.length?rows:(raw&&typeof raw==='object'&&!Array.isArray(raw)?[raw as Record<string,unknown>]:[]);
   const candidates=source.map(normalizeCandidate).filter(Boolean) as AprCompany[];
   const best=new Map<string,AprCompany>();
@@ -158,18 +168,20 @@ function rankOpenData(companies:AprCompany[],query:string,limit:number){
 
 export class APRSyncService {
   static isConfigured() { return true; }
-  static sourceMode(){return hasContractedApi()?'contracted':'open-data';}
+  static sourceMode(){return hasContractedApi()?'contracted':'open-data-bulk';}
   static sourceUrl(){return hasContractedApi()?(process.env.APR_API_SEARCH_URL||process.env.APR_API_URL||'configured'):openDataUrl();}
 
   static async search(query: string, limit = 15) {
     const template = process.env.APR_API_SEARCH_URL || process.env.APR_API_URL;
     if(template){const raw=await fetchApr(template,query,'search');return extractCompanies(raw).slice(0,Math.max(1,Math.min(20,limit)));}
-    const companies=await loadOpenData();return rankOpenData(companies,query,limit);
+    const error:any=new Error('APR Open Data je bulk snapshot. Pokrenite APR Sync da biste osvežili centralni indeks.');
+    error.code='APR_BULK_SYNC_REQUIRED'; throw error;
   }
   static async detail(query: string) {
     const template = process.env.APR_API_DETAIL_URL || process.env.APR_API_URL || process.env.APR_API_SEARCH_URL;
     if(template){const raw=await fetchApr(template,query,'detail');const candidates=extractCompanies(raw);const digits=digitsOnly(query);return candidates.find(c=>c.registration_number===digits||c.pib===digits)||candidates[0]||null;}
-    const companies=await loadOpenData();const ranked=rankOpenData(companies,query,5);const digits=digitsOnly(query);return ranked.find(c=>c.registration_number===digits||c.pib===digits)||ranked[0]||null;
+    const error:any=new Error('APR Open Data se osvežava periodičnim bulk sync procesom.');
+    error.code='APR_BULK_SYNC_REQUIRED'; throw error;
   }
 
   static async upsert(company: AprCompany, runId?: string): Promise<SyncResult> {
