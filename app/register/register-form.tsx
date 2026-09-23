@@ -26,8 +26,8 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
   const [password,setPassword]=useState("");
   const [plan,setPlan]=useState<Plan>(initialPlan==="premium"?"premium":"basic");
   const [trial,setTrial]=useState(Boolean(initialTrial));
-  const [accountantPib,setAccountantPib]=useState("");
-  const [accountantEmail,setAccountantEmail]=useState("");
+  const [accountantInviteChannel,setAccountantInviteChannel]=useState<"email"|"sms">("email");
+  const [accountantInviteContact,setAccountantInviteContact]=useState("");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const usernamePreview=useMemo(()=>company?latinUsernameBase(company.name):"",[company]);
@@ -50,7 +50,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
     if(!validateAccount())return;
     setBusy(true);setError("");
     try{
-      const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role,email:email.trim().toLowerCase(),password,company_id:company.id,plan,trial,company_contact_email:company.contact_email||"",company_contact_phone:company.contact_phone||"",accountant_pib:role==="company"?accountantPib:"",accountant_email:role==="company"?accountantEmail:""})});
+      const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role,email:email.trim().toLowerCase(),password,company_id:company.id,plan,trial,company_contact_email:company.contact_email||"",company_contact_phone:company.contact_phone||"",accountant_invite_channel:role==="company"?accountantInviteChannel:"email",accountant_invite_contact:role==="company"?accountantInviteContact:""})});
       const d=await r.json();if(!r.ok)throw new Error(d.error||"Registracija nije uspela.");
       if(d.accountant_invite_error){window.alert(`Nalog je kreiran, ali poziv knjigovođi nije poslat: ${d.accountant_invite_error}. Poziv možete ponovo poslati iz menija Više.`);}
       if(d.checkout_required&&d.organization_id){await startCheckout(d.organization_id,plan);return;}
@@ -107,10 +107,11 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
 
     {step===5&&role==="company"&&<section className="register-step">
       <h2>Povežite knjigovođu <span className="optional-label">opciono</span></h2>
-      <p className="muted">Za zahtev su dovoljni PIB knjigovodstvene firme i email knjigovođe. Nakon registracije FiscalBox šalje verifikacioni email; klijent se povezuje tek kada knjigovođa potvrdi zahtev.</p>
-      <div className="setup-grid"><div className="field"><label>PIB knjigovođe</label><input className="input" inputMode="numeric" maxLength={9} value={accountantPib} onChange={e=>setAccountantPib(e.target.value.replace(/\D/g,"").slice(0,9))} placeholder="9 cifara"/></div><div className="field"><label>Email knjigovođe</label><input className="input" type="email" value={accountantEmail} onChange={e=>setAccountantEmail(e.target.value)} placeholder="knjigovodja@firma.rs"/></div></div>
+      <p className="muted">Najjednostavnije povezivanje: izaberite email ili SMS i unesite samo taj kontakt. Knjigovođa dobija obaveštenje, a zahtev prihvata iz svog FiscalBox dashboarda.</p>
+      <div className="invite-channel-switch"><button type="button" className={accountantInviteChannel==="email"?"active":""} onClick={()=>{setAccountantInviteChannel("email");setAccountantInviteContact("")}}>Email</button><button type="button" className={accountantInviteChannel==="sms"?"active":""} onClick={()=>{setAccountantInviteChannel("sms");setAccountantInviteContact("")}}>SMS</button></div>
+      <div className="field setup-wide"><label>{accountantInviteChannel==="email"?"Email knjigovođe":"Telefon knjigovođe"}</label><input className="input" type={accountantInviteChannel==="email"?"email":"tel"} value={accountantInviteContact} onChange={e=>setAccountantInviteContact(e.target.value)} placeholder={accountantInviteChannel==="email"?"knjigovodja@firma.rs":"+381601234567"}/></div>
       {error&&<div className="error">{error}</div>}
-      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn" onClick={()=>{setAccountantPib("");setAccountantEmail("");submit()}} disabled={busy}>Preskoči za sada</button><button className="btn btn-primary" onClick={submit} disabled={busy||(Boolean(accountantPib||accountantEmail)&&(!/^\d{9}$/.test(accountantPib)||!/^\S+@\S+\.\S+$/.test(accountantEmail)))}>{busy?"Kreiram nalog…":trial?"Pokreni 10 dana besplatno":"Registruj i pređi na plaćanje"}</button></div>
+      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn" onClick={()=>{setAccountantInviteContact("");submit()}} disabled={busy}>Preskoči za sada</button><button className="btn btn-primary" onClick={submit} disabled={busy||(accountantInviteContact!==""&&(accountantInviteChannel==="email"?!/^\S+@\S+\.\S+$/.test(accountantInviteContact.trim()):accountantInviteContact.replace(/\D/g,"").length<8))}>{busy?"Kreiram nalog…":trial?"Pokreni 10 dana besplatno":"Registruj i pređi na plaćanje"}</button></div>
     </section>}
   </div>;
 }

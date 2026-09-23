@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { createAccountantVerificationInvite, normalizePib } from '@/lib/accountant-verification';
+import { createConnectionRequest } from '@/lib/connection-requests';
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,16 +31,14 @@ export async function POST(request:Request){
   const companyId=String(body.company_id||'');
   const plan=body.plan==='premium'?'premium':'basic';
   const trial=body.trial!==false;
-  const accountantPib=normalizePib(body.accountant_pib);
-  const accountantEmail=String(body.accountant_email||'').trim().toLowerCase();
+  const accountantInviteChannel=body.accountant_invite_channel==='sms'?'sms':'email';
+  const accountantInviteContact=String(body.accountant_invite_contact||'').trim();
   const companyContactEmail=String(body.company_contact_email||'').trim().toLowerCase();
   const companyContactPhone=String(body.company_contact_phone||'').trim().slice(0,80);
 
   if(!EMAIL.test(email))return NextResponse.json({error:'Unesite ispravnu email adresu.'},{status:400});
   if(password.length<8)return NextResponse.json({error:'Lozinka mora imati najmanje 8 znakova.'},{status:400});
   if(!companyId)return NextResponse.json({error:'Pronađite i izaberite firmu.'},{status:400});
-  if((accountantPib||accountantEmail)&&!/^\d{9}$/.test(accountantPib))return NextResponse.json({error:'PIB knjigovođe mora imati tačno 9 cifara.'},{status:400});
-  if((accountantPib||accountantEmail)&&!EMAIL.test(accountantEmail))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});
   if(companyContactEmail&&!EMAIL.test(companyContactEmail))return NextResponse.json({error:'Kontakt email firme nije ispravan.'},{status:400});
 
   const admin=createAdminClient();
@@ -79,27 +77,13 @@ export async function POST(request:Request){
     const {error:subError}=await admin.from('subscriptions').insert({organization_id:org.id,company_id:company.id,plan,seat_count:1,status:trial?'trial':'pending_checkout',provider:trial?null:'lemonsqueezy',trial_started_at:trial?now.toISOString():null,trial_ends_at:trial?trialEnd:null,trial_used_at:trial?now.toISOString():null,current_period_end:trial?trialEnd:null});
     if(subError)throw subError;
 
-    if(role==='accountant'){
-      let pendingQuery=admin.from('accountant_invitations').select('*').eq('status','pending').eq('email',email);
-      pendingQuery=company.pib?pendingQuery.eq('accountant_pib',company.pib):pendingQuery.eq('accountant_company_id',company.id);
-      const {data:pending}=await pendingQuery;
-      for(const invite of pending||[]){
-        if(invite.expires_at&&new Date(invite.expires_at).getTime()<Date.now())continue;
-        const {data:clientOrg}=await admin.from('organizations').select('id,company_id').eq('id',invite.organization_id).maybeSingle();
-        if(!clientOrg?.company_id)continue;
-        const nowAccepted=new Date().toISOString();
-        await admin.from('accountant_company').upsert({accountant_organization_id:org.id,company_id:clientOrg.company_id,client_organization_id:clientOrg.id,status:'active',requested_by:invite.created_by||null,approved_by:newUserId,approved_at:nowAccepted,updated_at:nowAccepted},{onConflict:'accountant_organization_id,company_id'});
-        await admin.from('organization_members').upsert({organization_id:clientOrg.id,user_id:newUserId,role:'accountant'},{onConflict:'organization_id,user_id'});
-        await admin.from('accountant_invitations').update({status:'accepted',accepted_by:newUserId,accepted_at:nowAccepted,verified_at:nowAccepted,accountant_organization_id:org.id}).eq('id',invite.id);
-      }
-    }
 
     let accountantInviteError='';
-    if(role==='company'&&accountantPib&&accountantEmail){
+    if(role==='company'&&accountantInviteContact){
       try{
-        await createAccountantVerificationInvite({admin,requestUrl:request.url,organizationId:org.id,accountantPib,accountantEmail,createdBy:newUserId});
+        await createConnectionRequest({admin,requestUrl:request.url,senderOrganizationId:org.id,senderUserId:newUserId,channel:accountantInviteChannel,contact:accountantInviteContact});
       }catch(e:any){
-        accountantInviteError=e?.message||'Verifikacioni email knjigovođi nije poslat.';
+        accountantInviteError=e?.message||'Zahtev knjigovođi nije poslat.';
       }
     }
 

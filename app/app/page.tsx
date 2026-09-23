@@ -4,6 +4,27 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import Dashboard from "./ui";
 import SubscriptionRequired from "@/components/SubscriptionRequired";
 
+function normEmail(v:any){return String(v||'').trim().toLowerCase();}
+function normPhone(v:any){let d=String(v||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('0'))d=`381${d.slice(1)}`;if(d&&!d.startsWith('381')&&d.length<=10)d=`381${d}`;return d?`+${d}`:'';}
+async function loadIncomingConnections(admin:any,targetKind:'company'|'accounting',org:any,userEmail:string){
+  if(!org)return [];
+  const {data:rows}=await admin.from('connection_requests').select('*').eq('target_kind',targetKind).eq('status','pending').order('created_at',{ascending:false}).limit(300);
+  const orgId=String(org.organization_id||org.id||'');
+  const emailCandidates=new Set([normEmail(userEmail),normEmail(org.contact_email)].filter(Boolean));
+  const phone=normPhone(org.contact_phone);
+  const matched=(rows||[]).filter((r:any)=>{
+    if(r.expires_at&&new Date(r.expires_at).getTime()<Date.now())return false;
+    if(r.target_organization_id&&String(r.target_organization_id)===orgId)return true;
+    if(r.channel==='email'&&emailCandidates.has(normEmail(r.recipient_email)))return true;
+    if(r.channel==='sms'&&phone&&phone===normPhone(r.recipient_phone))return true;
+    return false;
+  });
+  const senderIds=Array.from(new Set(matched.map((r:any)=>String(r.sender_organization_id)).filter(Boolean)));
+  const {data:senders}=senderIds.length?await admin.from('organizations').select('id,name,pib,organization_type').in('id',senderIds):{data:[] as any[]};
+  const senderMap=new Map((senders||[]).map((o:any)=>[String(o.id),o]));
+  return matched.map((r:any)=>({...r,sender_organization:senderMap.get(String(r.sender_organization_id))||null}));
+}
+
 export default async function AppPage({searchParams}:{searchParams:Promise<{org?:string}>}) {
   const supabase = await createClient();
   const admin = createAdminClient();
@@ -25,6 +46,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
   const subscriptionMap=new Map((subscriptionRows||[]).map((sub:any)=>[String(sub.organization_id),sub]));
   const orgs = rawOrgs.map((o:any)=>({...o,subscription:subscriptionMap.get(String(o.organization_id))||null}));
   const activeOrg = params.org ? orgs.find((x:any)=>x.organization_id===params.org) : orgs[0];
+  const activeCompanyConnectionRequests=activeOrg&&activeOrg.organization_type!=='accounting'&&activeOrg.role!=='accountant'?await loadIncomingConnections(admin,'company',activeOrg,profile.auth_email||user.email||''):[];
 
   const {data:ownPendingAccess}=await supabase.from('company_access_requests')
     .select('id,company_id,organization_id,status,created_at,organizations(name,pib)')
@@ -47,7 +69,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     incomingAccessRequests=(accessRows||[]).map((x:any)=>({...x,requester:requesterMap.get(String(x.requester_user_id))||null}));
     incomingAccountantRequests=(accountantRows||[]).map((x:any)=>({...x,accounting_organization:officeMap.get(String(x.accountant_organization_id))||null}));
   }
-  const accessContext={ownPending:ownPendingAccess||[],incomingAccessRequests,incomingAccountantRequests};
+  const accessContext={ownPending:ownPendingAccess||[],incomingAccessRequests,incomingAccountantRequests,incomingConnectionRequests:activeCompanyConnectionRequests};
 
   let accountantOverview:any = null;
   let accountantContext:any = null;
@@ -83,7 +105,8 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
         const {data:assignmentRows}=await supabase.from("accountant_client_assignments").select("employee_user_id,client_organization_id,created_at").eq("accounting_organization_id",officeId);
         assignments=assignmentRows||[];
       }
-      accountantContext={office:accountingOffice,isAdmin,userSettings:userSettings||{notify_new_receipts:true,notify_new_documents:true,notify_deadlines:true},staff,assignments,pendingInvites:pendingInvites||[]};
+      const incomingConnectionRequests=await loadIncomingConnections(admin,'accounting',accountingOffice,profile.auth_email||user.email||'');
+      accountantContext={office:accountingOffice,isAdmin,userSettings:userSettings||{notify_new_receipts:true,notify_new_documents:true,notify_deadlines:true},staff,assignments,pendingInvites:pendingInvites||[],incomingConnectionRequests};
     }
   }
 

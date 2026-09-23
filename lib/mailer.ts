@@ -15,6 +15,16 @@ export async function sendClientInvite(opts:{to:string;accountingOffice:string;c
   });
 }
 
+
+export async function sendConnectionRequestEmail(opts:{to:string;senderName:string;senderKind:'company'|'accounting';appUrl:string}){
+  const senderLabel=opts.senderKind==='accounting'?'Knjigovodstvena agencija':'Firma';
+  return sendEmail({
+    to:opts.to,
+    subject:`Novi zahtev za povezivanje · ${opts.senderName} · FiscalBox`,
+    html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#17221E;max-width:620px;margin:auto"><h2 style="margin-bottom:8px">Imate novi zahtev u FiscalBox-u</h2><p>${senderLabel} <strong>${escapeHtml(opts.senderName)}</strong> želi povezivanje sa vašim FiscalBox nalogom.</p><p>Radi bezbednosti, povezivanje se <strong>ne prihvata iz emaila</strong>. Prijavite se u FiscalBox i u dashboardu otvorite novi zahtev, pa izaberite <strong>Prihvati</strong> ili <strong>Odbij</strong>.</p><p style="margin:24px 0"><a href="${escapeHtml(opts.appUrl)}" style="display:inline-block;padding:13px 20px;background:#0D382B;color:#fff;text-decoration:none;border-radius:10px;font-weight:700">Otvori FiscalBox dashboard</a></p><p style="font-size:12px;color:#68736e">Ako niste očekivali ovaj zahtev, samo ga odbijte u dashboardu.</p></div>`
+  });
+}
+
 export async function sendBillingInvoiceEmail(opts:{to:string;organizationName:string;invoiceNumber:string;plan:string;totalAmount:number;billingUrl:string;pdf:Buffer}){
   return sendEmail({
     to:opts.to,
