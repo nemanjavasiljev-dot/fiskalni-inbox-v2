@@ -26,6 +26,8 @@ export type CompanySearchValue = {
   source_status?: string;
   manual_review_required?: boolean;
   registry_kind?: 'company' | 'entrepreneur' | 'other';
+  contact_email?: string | null;
+  contact_phone?: string | null;
 };
 
 type Props = {

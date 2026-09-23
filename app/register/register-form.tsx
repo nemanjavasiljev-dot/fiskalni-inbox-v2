@@ -63,7 +63,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
     if(!validateAccount())return;
     setBusy(true);setError("");
     try{
-      const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role,email:email.trim().toLowerCase(),password,company_id:company.id,plan,trial,accountant_company_id:role==="company"?accountantCompany?.id||"":"",accountant_email:role==="company"?accountantEmail:""})});
+      const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role,email:email.trim().toLowerCase(),password,company_id:company.id,plan,trial,company_contact_email:company.contact_email||"",company_contact_phone:company.contact_phone||"",accountant_company_id:role==="company"?accountantCompany?.id||"":"",accountant_email:role==="company"?accountantEmail:""})});
       const d=await r.json();if(!r.ok)throw new Error(d.error||"Registracija nije uspela.");
       if(d.checkout_required&&d.organization_id){await startCheckout(d.organization_id,plan);return;}
       router.push(d.redirect||"/app");router.refresh();

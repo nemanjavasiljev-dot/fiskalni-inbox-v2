@@ -33,11 +33,14 @@ export async function POST(request:Request){
   const trial=body.trial!==false;
   const accountantCompanyId=String(body.accountant_company_id||'');
   const accountantEmail=String(body.accountant_email||'').trim().toLowerCase();
+  const companyContactEmail=String(body.company_contact_email||'').trim().toLowerCase();
+  const companyContactPhone=String(body.company_contact_phone||'').trim().slice(0,80);
 
   if(!EMAIL.test(email))return NextResponse.json({error:'Unesite ispravnu email adresu.'},{status:400});
   if(password.length<8)return NextResponse.json({error:'Lozinka mora imati najmanje 8 znakova.'},{status:400});
   if(!companyId)return NextResponse.json({error:'Pronađite i izaberite firmu.'},{status:400});
   if(accountantEmail&&!EMAIL.test(accountantEmail))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});
+  if(companyContactEmail&&!EMAIL.test(companyContactEmail))return NextResponse.json({error:'Kontakt email firme nije ispravan.'},{status:400});
 
   const admin=createAdminClient();
   const {data:company}=await admin.from('companies').select('*').eq('id',companyId).maybeSingle();
@@ -65,7 +68,7 @@ export async function POST(request:Request){
     }
 
     const now=new Date();const trialEnd=new Date(now.getTime()+10*24*60*60*1000).toISOString();
-    const orgPayload:any={company_id:company.id,name:company.name,pib:company.pib,registration_number:company.registration_number,legal_form:company.legal_form,address:company.address,municipality:company.municipality||company.city,activity_code:company.activity_code,activity_name:company.activity_name,apr_raw:company.apr_raw||null,owner_user_id:newUserId,plan,status:trial?'trial':'pending_payment',organization_type:role==='accountant'?'accounting':'company',trial_ends_at:trial?trialEnd:null,contact_email:email};
+    const orgPayload:any={company_id:company.id,name:company.name,pib:company.pib,registration_number:company.registration_number,legal_form:company.legal_form,address:company.address,municipality:company.municipality||company.city,activity_code:company.activity_code,activity_name:company.activity_name,apr_raw:company.apr_raw||null,owner_user_id:newUserId,plan,status:trial?'trial':'pending_payment',organization_type:role==='accountant'?'accounting':'company',trial_ends_at:trial?trialEnd:null,contact_email:companyContactEmail||email,contact_phone:companyContactPhone||null};
     const {data:org,error:orgError}=await admin.from('organizations').insert(orgPayload).select('id').single();
     if(orgError||!org)throw orgError||new Error('Organizacija nije kreirana.');newOrgId=org.id;
 

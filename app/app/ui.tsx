@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, ImagePlus, Send, Sparkles, Users } from "lucide-react";
+import { FileText, ImagePlus, Send, Sparkles, Users, ReceiptText, WalletCards, BadgePercent, Clock3 } from "lucide-react";
 import QrScanner from "@/components/QrScanner";
 import UserBottomNav from "@/components/UserBottomNav";
 import BrandWordmark from "@/components/BrandWordmark";
@@ -228,15 +228,20 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   }
 
   return <Shell profile={profile} activeOrg={activeOrg} hasBottomNav={isCompanyUser} logoAvailable={logoAvailable} logoVersion={logoVersion}>
-    <div className="app-head company-home-head" id="home">
-      <div className="company-identity">
+    <div className={`app-head company-home-head ${isCompanyUser?"company-user-dashboard-head":""}`} id="home">
+      {!isCompanyUser&&<div className="company-identity">
         {activeOrg&&<div className="company-logo-wrap">
           {logoAvailable?<img className="company-logo-image" src={`/api/org/logo?organization_id=${activeOrg.organization_id}&v=${logoVersion}`} alt={`Logo ${activeOrg.name}`}/>:<div className="company-logo-placeholder">{String(activeOrg.name||"F").slice(0,1).toUpperCase()}</div>}
-          {isCompanyUser&&<><button className="company-logo-edit" type="button" onClick={()=>logoInputRef.current?.click()} title="Dodaj ili promeni logo"><ImagePlus size={16}/></button><input ref={logoInputRef} hidden type="file" accept="image/*" onChange={e=>uploadLogo(e.target.files?.[0])}/></>}
         </div>}
         <div><span className="pill">{role}</span><h1 className="company-name-heading">{activeOrg?.name||"FiscalBox"}</h1><p className="muted">{activeOrg?.pib?`PIB ${activeOrg.pib}`:"Izaberite ili kreirajte firmu."}</p></div>
-      </div>
-      <div className="actions">
+      </div>}
+      {isCompanyUser&&activeOrg&&<div className="mobile-dashboard-icons" aria-label="Pregled poslovanja">
+        <DashboardIcon icon={<ReceiptText size={23}/>} label="Računi" value={String(receiptList.length)}/>
+        <DashboardIcon icon={<WalletCards size={23}/>} label="Troškovi" value={money(total)}/>
+        <DashboardIcon icon={<BadgePercent size={23}/>} label="PDV" value={money(tax)}/>
+        <DashboardIcon icon={<Clock3 size={23}/>} label="Čeka slanje" value={String(unsentCount)} alert={unsentCount>0}/>
+      </div>}
+      <div className="actions company-home-actions">
         {organizations.length>1&&<select className="select" value={activeOrg?.organization_id||""} onChange={e=>router.push("/app?org="+e.target.value)}>{organizations.map((o:any)=><option value={o.organization_id} key={o.organization_id}>{o.name}</option>)}</select>}
         {activeOrg&&activeOrg.role==="accountant"&&<button className="btn" onClick={openFiles}><FileText size={17}/> Dokumenti klijenta</button>}
         {isCompanyUser&&<button className="btn btn-primary send-accountant-btn" onClick={sendNow} disabled={sendBusy}><Send size={17}/>{sendBusy?"Šaljem…":`Pošalji knjigovođi${unsentCount?` (${unsentCount})`:""}`}</button>}
@@ -248,7 +253,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       {homeMessage&&<div className="home-message">{homeMessage}</div>}
       {(accessContext?.incomingAccessRequests?.length||accessContext?.incomingAccountantRequests?.length)?<div className="card company-requests-card"><div className="section-title"><div><span className="pill">ZAHTEVI</span><h3>Pristup i povezivanje firme</h3></div></div><div className="company-request-list">{(accessContext?.incomingAccessRequests||[]).map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.requester?.full_name||r.requester?.username||r.requester?.auth_email||'Novi korisnik'}</b><span>Traži pristup postojećem FiscalBox nalogu firme.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewRelationship('access',r.id,'approve')}>Odobri</button><button className="btn" onClick={()=>reviewRelationship('access',r.id,'reject')}>Odbij</button></div></div>)}{(accessContext?.incomingAccountantRequests||[]).map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.accounting_organization?.name||'Knjigovodstvena agencija'}</b><span>Traži povezivanje sa vašom firmom{r.accounting_organization?.pib?` · PIB ${r.accounting_organization.pib}`:''}.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewRelationship('accountant',r.id,'approve')}>Poveži</button><button className="btn" onClick={()=>reviewRelationship('accountant',r.id,'reject')}>Odbij</button></div></div>)}</div></div>:null}
       {searchOpen&&<div className="card user-search-card"><div className="user-search-row"><span aria-hidden="true">⌕</span><input ref={searchRef} className="user-search-input" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pretraži dobavljača, PIB, broj računa, kategoriju…"/>{query&&<button className="user-search-clear" onClick={()=>setQuery("")} aria-label="Obriši pretragu">×</button>}</div><div className="muted" style={{fontSize:12,marginTop:8}}>{query?`${filteredReceipts.length} rezultata`:"Pretražite kompletnu bazu računa."}</div></div>}
-      <div className="grid stats"><Stat label="Broj računa" value={receiptList.length}/><Stat label="Ukupni troškovi" value={money(total)}/><Stat label="PDV" value={money(tax)}/><Stat label={isCompanyUser?"Čeka slanje":"Primljeno"} value={isCompanyUser?unsentCount:receiptList.length}/></div>
+      {!isCompanyUser&&<div className="grid stats"><Stat label="Broj računa" value={receiptList.length}/><Stat label="Ukupni troškovi" value={money(total)}/><Stat label="PDV" value={money(tax)}/><Stat label="Primljeno" value={receiptList.length}/></div>}
 
       <div className="card expense-overview">
         <div className="expense-overview-head"><div><span className="pill"><Sparkles size={13}/> AUTOMATSKA KATEGORIZACIJA</span><h3>Pregled po vrsti troška</h3></div><label className="category-filter"><span>Kategorija</span><select className="select" value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)}><option value="Sve">Sve kategorije</option>{RECEIPT_CATEGORIES.map((c:string)=><option key={c} value={c}>{c}</option>)}</select></label></div>
@@ -269,5 +274,6 @@ function ServiceBlocked({profile,reason}:any){return <div className="app-shell">
 
 function PendingCompanyAccess({requests}:any){return <div className="card pending-company-access"><span className="pill">ZAHTEV POSLAT</span><h2>Firma već ima aktivan FiscalBox nalog</h2><p className="muted">Nećemo praviti duplikat firme niti vam automatski dati administratorska prava. Postojeći administrator mora da odobri vaš zahtev za pristup.</p>{(requests||[]).map((r:any)=><div key={r.id} className="pending-company-access-row"><b>{r.organizations?.name||'Firma'}</b><span>{r.organizations?.pib?`PIB ${r.organizations.pib} · `:''}zahtev na čekanju</span></div>)}</div>}
 
+function DashboardIcon({icon,label,value,alert=false}:any){return <div className={`dashboard-icon-card ${alert?"alert":""}`}><div className="dashboard-icon-symbol">{icon}</div><div className="dashboard-icon-copy"><span>{label}</span><strong>{value}</strong></div></div>}
 function Stat({label,value}:any){return <div className="card stat"><span>{label}</span><strong>{value}</strong></div>}
 function Onboarding(){return <div className="card" style={{padding:30,maxWidth:650}}><span className="pill">PRVI KORAK</span><h2>Povežite firmu</h2><p className="muted">Unesite PIB ili matični broj. Kada je APR API konfigurisan, podaci firme se popunjavaju automatski.</p><a className="btn btn-primary" href="/app/setup">Unesi PIB / matični broj</a></div>}
