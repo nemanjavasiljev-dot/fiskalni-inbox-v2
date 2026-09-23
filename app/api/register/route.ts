@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { sendAccountantInvite } from '@/lib/mailer';
+import { createAccountantVerificationInvite, normalizePib } from '@/lib/accountant-verification';
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,7 +31,7 @@ export async function POST(request:Request){
   const companyId=String(body.company_id||'');
   const plan=body.plan==='premium'?'premium':'basic';
   const trial=body.trial!==false;
-  const accountantCompanyId=String(body.accountant_company_id||'');
+  const accountantPib=normalizePib(body.accountant_pib);
   const accountantEmail=String(body.accountant_email||'').trim().toLowerCase();
   const companyContactEmail=String(body.company_contact_email||'').trim().toLowerCase();
   const companyContactPhone=String(body.company_contact_phone||'').trim().slice(0,80);
@@ -39,7 +39,8 @@ export async function POST(request:Request){
   if(!EMAIL.test(email))return NextResponse.json({error:'Unesite ispravnu email adresu.'},{status:400});
   if(password.length<8)return NextResponse.json({error:'Lozinka mora imati najmanje 8 znakova.'},{status:400});
   if(!companyId)return NextResponse.json({error:'Pronađite i izaberite firmu.'},{status:400});
-  if(accountantEmail&&!EMAIL.test(accountantEmail))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});
+  if((accountantPib||accountantEmail)&&!/^\d{9}$/.test(accountantPib))return NextResponse.json({error:'PIB knjigovođe mora imati tačno 9 cifara.'},{status:400});
+  if((accountantPib||accountantEmail)&&!EMAIL.test(accountantEmail))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});
   if(companyContactEmail&&!EMAIL.test(companyContactEmail))return NextResponse.json({error:'Kontakt email firme nije ispravan.'},{status:400});
 
   const admin=createAdminClient();
@@ -79,31 +80,32 @@ export async function POST(request:Request){
     if(subError)throw subError;
 
     if(role==='accountant'){
-      const {data:pending}=await admin.from('accountant_invitations').select('*').eq('status','pending').or(`accountant_company_id.eq.${company.id},accountant_pib.eq.${company.pib||'__none__'},email.eq.${email}`);
+      let pendingQuery=admin.from('accountant_invitations').select('*').eq('status','pending').eq('email',email);
+      pendingQuery=company.pib?pendingQuery.eq('accountant_pib',company.pib):pendingQuery.eq('accountant_company_id',company.id);
+      const {data:pending}=await pendingQuery;
       for(const invite of pending||[]){
+        if(invite.expires_at&&new Date(invite.expires_at).getTime()<Date.now())continue;
         const {data:clientOrg}=await admin.from('organizations').select('id,company_id').eq('id',invite.organization_id).maybeSingle();
         if(!clientOrg?.company_id)continue;
-        await admin.from('accountant_company').upsert({accountant_organization_id:org.id,company_id:clientOrg.company_id,client_organization_id:clientOrg.id,status:'active',requested_by:invite.created_by||null,approved_by:invite.created_by||null,approved_at:new Date().toISOString(),updated_at:new Date().toISOString()},{onConflict:'accountant_organization_id,company_id'});
+        const nowAccepted=new Date().toISOString();
+        await admin.from('accountant_company').upsert({accountant_organization_id:org.id,company_id:clientOrg.company_id,client_organization_id:clientOrg.id,status:'active',requested_by:invite.created_by||null,approved_by:newUserId,approved_at:nowAccepted,updated_at:nowAccepted},{onConflict:'accountant_organization_id,company_id'});
         await admin.from('organization_members').upsert({organization_id:clientOrg.id,user_id:newUserId,role:'accountant'},{onConflict:'organization_id,user_id'});
-        await admin.from('accountant_invitations').update({status:'accepted',accepted_by:newUserId,accepted_at:new Date().toISOString()}).eq('id',invite.id);
+        await admin.from('accountant_invitations').update({status:'accepted',accepted_by:newUserId,accepted_at:nowAccepted,verified_at:nowAccepted,accountant_organization_id:org.id}).eq('id',invite.id);
       }
     }
 
-    if(role==='company'&&accountantCompanyId){
-      const {data:accountingOrg}=await admin.from('organizations').select('id,name,owner_user_id').eq('company_id',accountantCompanyId).eq('organization_type','accounting').limit(1).maybeSingle();
-      if(accountingOrg){
-        await admin.from('accountant_company').upsert({accountant_organization_id:accountingOrg.id,company_id:company.id,client_organization_id:org.id,status:'active',requested_by:newUserId,approved_by:newUserId,approved_at:new Date().toISOString(),updated_at:new Date().toISOString()},{onConflict:'accountant_organization_id,company_id'});
-        await admin.from('organization_members').upsert({organization_id:org.id,user_id:accountingOrg.owner_user_id,role:'accountant'},{onConflict:'organization_id,user_id'});
-      }else{
-        const {data:accCompany}=await admin.from('companies').select('pib,name').eq('id',accountantCompanyId).maybeSingle();
-        await admin.from('accountant_invitations').insert({organization_id:org.id,accountant_company_id:accountantCompanyId,accountant_pib:accCompany?.pib||null,email:accountantEmail||null,status:'pending',created_by:newUserId});
-        if(accountantEmail){try{await sendAccountantInvite({to:accountantEmail,companyName:company.name,registerUrl:new URL('/register',request.url).toString()});}catch{}}
+    let accountantInviteError='';
+    if(role==='company'&&accountantPib&&accountantEmail){
+      try{
+        await createAccountantVerificationInvite({admin,requestUrl:request.url,organizationId:org.id,accountantPib,accountantEmail,createdBy:newUserId});
+      }catch(e:any){
+        accountantInviteError=e?.message||'Verifikacioni email knjigovođi nije poslat.';
       }
     }
 
     const supabase=await createClient();const login=await supabase.auth.signInWithPassword({email,password});
-    if(login.error)return NextResponse.json({ok:true,created:true,username,requires_login:true,redirect:'/login'});
-    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,checkout_required:!trial,redirect:trial?'/app':'/app/subscription'});
+    if(login.error)return NextResponse.json({ok:true,created:true,username,requires_login:true,redirect:'/login',accountant_invite_error:accountantInviteError||null});
+    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,checkout_required:!trial,redirect:trial?'/app':'/app/subscription',accountant_invite_error:accountantInviteError||null});
   }catch(e:any){
     if(newOrgId){try{await admin.from('organizations').delete().eq('id',newOrgId);}catch{}}
     if(newUserId){try{await admin.auth.admin.deleteUser(newUserId);}catch{}}

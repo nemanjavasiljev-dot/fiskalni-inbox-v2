@@ -1,3 +1,28 @@
-import { NextResponse } from 'next/server';import { createClient } from '@/lib/supabase/server';import { createAdminClient } from '@/lib/supabase/admin';import { sendAccountantInvite } from '@/lib/mailer';const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-export async function POST(request:Request){const supabase=await createClient();const {data:{user}}=await supabase.auth.getUser();if(!user)return NextResponse.json({error:'Niste prijavljeni.'},{status:401});const {organization_id,accountant_company_id,accountant_email}=await request.json();const orgId=String(organization_id||'');const accountantCompanyId=String(accountant_company_id||'');const email=String(accountant_email||'').trim().toLowerCase();if(!orgId||!accountantCompanyId)return NextResponse.json({error:'Izaberite knjigovodstvenu firmu.'},{status:400});if(email&&!EMAIL.test(email))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});const {data:membership}=await supabase.from('organization_members').select('role').eq('organization_id',orgId).eq('user_id',user.id).maybeSingle();if(!membership||!['owner','employee'].includes(membership.role))return NextResponse.json({error:'Nemate pravo izmene knjigovođe.'},{status:403});const admin=createAdminClient();const [{data:clientOrg},{data:accCompany}]=await Promise.all([admin.from('organizations').select('id,name,company_id').eq('id',orgId).maybeSingle(),admin.from('companies').select('id,name,pib').eq('id',accountantCompanyId).maybeSingle()]);if(!clientOrg?.company_id||!accCompany)return NextResponse.json({error:'Firma nije pravilno povezana sa centralnim registrom.'},{status:409});const {data:accountingOrg}=await admin.from('organizations').select('id,name,owner_user_id').eq('company_id',accountantCompanyId).eq('organization_type','accounting').limit(1).maybeSingle();if(accountingOrg){await admin.from('accountant_company').upsert({accountant_organization_id:accountingOrg.id,company_id:clientOrg.company_id,client_organization_id:orgId,status:'active',requested_by:user.id,approved_by:user.id,approved_at:new Date().toISOString(),updated_at:new Date().toISOString()},{onConflict:'accountant_organization_id,company_id'});await admin.from('organization_members').upsert({organization_id:orgId,user_id:accountingOrg.owner_user_id,role:'accountant'},{onConflict:'organization_id,user_id'});return NextResponse.json({ok:true,found:true,organization_name:accountingOrg.name,message:`Povezani ste sa knjigovođom ${accountingOrg.name}.`});}
-  await admin.from('accountant_invitations').insert({organization_id:orgId,accountant_company_id:accountantCompanyId,accountant_pib:accCompany.pib||null,email:email||null,status:'pending',created_by:user.id});if(email){try{await sendAccountantInvite({to:email,companyName:clientOrg.name,registerUrl:new URL('/register',request.url).toString()});}catch{}}return NextResponse.json({ok:true,found:false,message:'Knjigovodstvena firma još nema FiscalBox nalog. Poziv je sačuvan.'});}
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { createAccountantVerificationInvite, normalizeEmail, normalizePib } from '@/lib/accountant-verification';
+
+export async function POST(request:Request){
+  const supabase=await createClient();
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user)return NextResponse.json({error:'Niste prijavljeni.'},{status:401});
+  const body=await request.json().catch(()=>({}));
+  const orgId=String(body.organization_id||'');
+  const accountantPib=normalizePib(body.accountant_pib);
+  const accountantEmail=normalizeEmail(body.accountant_email);
+  if(!orgId)return NextResponse.json({error:'Nedostaje firma koja šalje zahtev.'},{status:400});
+  if(!/^\d{9}$/.test(accountantPib))return NextResponse.json({error:'PIB knjigovođe mora imati tačno 9 cifara.'},{status:400});
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountantEmail))return NextResponse.json({error:'Unesite ispravan email knjigovođe.'},{status:400});
+
+  const {data:membership}=await supabase.from('organization_members').select('role').eq('organization_id',orgId).eq('user_id',user.id).maybeSingle();
+  if(!membership||!['owner','employee'].includes(membership.role))return NextResponse.json({error:'Nemate pravo slanja zahteva knjigovođi.'},{status:403});
+
+  const admin=createAdminClient();
+  try{
+    const invite=await createAccountantVerificationInvite({admin,requestUrl:request.url,organizationId:orgId,accountantPib,accountantEmail,createdBy:user.id});
+    return NextResponse.json({ok:true,message:`Verifikacioni email je poslat na ${invite.email}. Knjigovođa mora da potvrdi prijem klijenta klikom iz poruke.`,accountant_registered:invite.accountingOrgFound,expires_at:invite.expiresAt});
+  }catch(e:any){
+    return NextResponse.json({error:e?.message||'Zahtev knjigovođi nije poslat.'},{status:400});
+  }
+}

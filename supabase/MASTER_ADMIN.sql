@@ -1,5 +1,5 @@
--- Run only after you have registered the production master-admin user.
--- Replace the email below.
-update public.profiles
-set global_role = 'master_admin'
-where auth_email = 'YOUR_MASTER_ADMIN_EMAIL@example.com';
+-- FiscalBox V5.8.5
+-- Legacy helper only. Normal MASTER provisioning is now automatic from /login.
+-- First login (only if no master_admin exists): MASTER / MASTER
+-- After login change credentials in MASTER dashboard -> Superadmin nalog.
+-- No SQL execution is required for the normal V5.8.5 MASTER setup.

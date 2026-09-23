@@ -1,8 +1,9 @@
-export async function sendAccountantInvite(opts:{to:string;companyName:string;registerUrl:string}){
+export async function sendAccountantInvite(opts:{to:string;companyName:string;companyPib?:string;accountantPib:string;verifyUrl:string;expiresAt:string}){
+  const expires=new Intl.DateTimeFormat('sr-RS',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Belgrade'}).format(new Date(opts.expiresAt));
   return sendEmail({
     to:opts.to,
-    subject:`${opts.companyName} vas poziva na FiscalBox`,
-    html:`<p>Firma <strong>${escapeHtml(opts.companyName)}</strong> želi da vas poveže kao knjigovođu u aplikaciji FiscalBox.</p><p>Registrujte nalog kao <strong>Knjigovođa</strong> i koristite isti email ili PIB knjigovodstvene firme. Klijenti koji su vas pozvali biće automatski povezani.</p><p><a href="${escapeHtml(opts.registerUrl)}">Registruj se na FiscalBox</a></p>`
+    subject:`Novi klijent za verifikaciju · ${opts.companyName} · FiscalBox`,
+    html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#17221E;max-width:620px;margin:auto"><h2 style="margin-bottom:8px">Novi klijent čeka vašu potvrdu</h2><p>Firma <strong>${escapeHtml(opts.companyName)}</strong>${opts.companyPib?` (PIB ${escapeHtml(opts.companyPib)})`:''} želi da vas poveže kao svog knjigovođu u aplikaciji FiscalBox.</p><p>Zahtev je poslat za knjigovodstvenu firmu PIB <strong>${escapeHtml(opts.accountantPib)}</strong> i na ovu email adresu. Klikom na dugme potvrđujete prijem novog klijenta.</p><p style="margin:24px 0"><a href="${escapeHtml(opts.verifyUrl)}" style="display:inline-block;padding:13px 20px;background:#0D382B;color:#fff;text-decoration:none;border-radius:10px;font-weight:700">Verifikuj i prihvati klijenta</a></p><p>Nakon verifikacije klijent se automatski pojavljuje u vašem FiscalBox dashboardu.</p><p style="font-size:12px;color:#68736e">Link važi do ${escapeHtml(expires)}. Ako niste očekivali ovaj zahtev, nemojte ga potvrditi.</p><p style="font-size:12px;color:#68736e">Ako dugme ne radi, otvorite: ${escapeHtml(opts.verifyUrl)}</p></div>`
   });
 }
 
