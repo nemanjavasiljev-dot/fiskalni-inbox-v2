@@ -34,6 +34,14 @@ function pickScalar(entries: [string, unknown][], keys: string[]) {
   return null;
 }
 
+function pickArray(entries: [string, unknown][], keys: string[]) {
+  for (const key of keys) {
+    const hit = entries.find(([k, v]) => k === key.toLowerCase() && Array.isArray(v));
+    if (hit) return hit[1] as unknown[];
+  }
+  return null;
+}
+
 function num(v: unknown) {
   if (v == null) return null;
   const n = Number(String(v).replace(/\s/g, "").replace(",", "."));
@@ -46,20 +54,72 @@ function safeDate(v: unknown) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+export function normalizePib(v: unknown) {
+  const raw = String(v ?? "").trim();
+  if (!raw) return null;
+  const match = raw.match(/(?:^|\D)(\d{9})(?:\D|$)/);
+  if (match) return match[1];
+  const digits = raw.replace(/\D/g, "");
+  return digits.length === 9 ? digits : raw;
+}
+
+const PAYMENT_TYPES: Record<string,string> = {
+  "0":"Drugo",
+  "1":"Gotovina",
+  "2":"Platna kartica",
+  "3":"Ček",
+  "4":"Prenos na račun",
+  "5":"Vaučer",
+  "6":"Mobilno / instant plaćanje"
+};
+
+function paymentNames(entries: [string, unknown][]) {
+  const explicit = pickScalar(entries,["paymentmethod","paymenttype","payment"]);
+  if (explicit != null && String(explicit).trim()) return String(explicit).trim();
+  const arr = pickArray(entries,["paymenttypes","paymenttypeids"]);
+  if (!arr?.length) return null;
+  return arr.map(x=>PAYMENT_TYPES[String(x)] || String(x)).join(", ");
+}
+
+export function verificationStatus(rawStatus: unknown) {
+  const s = String(rawStatus ?? "").trim();
+  if (!s) return { text:null, valid:null as boolean|null };
+  const n = s.toLocaleLowerCase("sr");
+  if (/(invalid|nevaže|nevaž|neisprav|није.*валид|неваже|неисправ|invalidan)/i.test(n)) return {text:s,valid:false};
+  if (/(valid|važe|važeći|isprav|валид|важе|исправ)/i.test(n)) return {text:s,valid:true};
+  return {text:s,valid:null as boolean|null};
+}
+
 export function normalizeVerification(raw: unknown) {
   const e = allEntries(raw);
+  const statusRaw = pickScalar(e,["status","verificationstatus","invoicestatus"]);
+  const status = verificationStatus(statusRaw);
+  const extension = String(pickScalar(e,[
+    "invoiceandtransactiontypeextension","invoicecounterextension","invoiceextension"
+  ]) || "") || null;
+  const totalCounter = num(pickScalar(e,["totalcounter"]));
+  const counterByType = num(pickScalar(e,["counterbyinvoiceandtransactiontype","transactiontypecounter"]));
+  const invoiceCounter = String(pickScalar(e,["invoicecounter"]) || "") ||
+    (counterByType != null && totalCounter != null ? `${counterByType}/${totalCounter}${extension || ""}` : null);
+
   return {
+    verification_status_text: status.text,
+    verification_valid: status.valid,
     merchant_name: String(pickScalar(e, [
-      "businessname", "merchantname", "sellername", "companyname", "shopname"
+      "businessname", "merchantname", "sellername", "companyname", "shopname", "locationname"
     ]) || "") || null,
-    merchant_pib: String(pickScalar(e, [
+    merchant_pib: normalizePib(pickScalar(e, [
       "tin", "taxpayerid", "sellertin", "merchanttin", "pib"
-    ]) || "") || null,
+    ])),
+    location_name: String(pickScalar(e,["locationname","shopname"]) || "") || null,
+    address: String(pickScalar(e,["address","locationaddress"]) || "") || null,
+    city: String(pickScalar(e,["city","locationcity"]) || "") || null,
+    municipality: String(pickScalar(e,["administrativeunitname","municipality"]) || "") || null,
     invoice_number: String(pickScalar(e, [
       "sdcinvoicenumber", "invoicenumber", "receiptno", "receiptid"
     ]) || "") || null,
     sdc_time: safeDate(pickScalar(e, [
-      "sdctime", "transactiontime", "datetime", "createdat"
+      "sdctime", "sdcdatetime", "sdcdateandtime", "transactiontime", "datetime", "createdat"
     ])),
     total_amount: num(pickScalar(e, [
       "totalamount", "total", "grandtotal", "amount"
@@ -67,11 +127,19 @@ export function normalizeVerification(raw: unknown) {
     total_tax: num(pickScalar(e, [
       "totaltax", "taxamount", "vatamount", "vat"
     ])),
-    payment_method: String(pickScalar(e, [
-      "paymentmethod", "paymenttype", "payment"
-    ]) || "") || null,
-    buyer_pib: String(pickScalar(e, [
+    payment_method: paymentNames(e),
+    buyer_pib: normalizePib(pickScalar(e, [
       "buyertin", "buyerid", "buyerpib"
-    ]) || "") || null
+    ])),
+    buyer_cost_center: String(pickScalar(e,["buyercostcenterid","buyercostcenter"]) || "") || null,
+    requested_by: String(pickScalar(e,["requestedby"]) || "") || null,
+    signed_by: String(pickScalar(e,["signedby"]) || "") || null,
+    invoice_counter: invoiceCounter,
+    invoice_type_extension: extension,
+    total_counter: totalCounter,
+    counter_by_type: counterByType,
+    journal: String(pickScalar(e,["journal","invoicejournal"]) || "") || null,
+    reference_number: String(pickScalar(e,["referencedocumentnumber","referencenumber"]) || "") || null,
+    pos_number: String(pickScalar(e,["posnumber","mrc"]) || "") || null
   };
 }

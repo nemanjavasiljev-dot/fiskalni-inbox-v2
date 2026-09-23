@@ -21,12 +21,12 @@ export async function POST(request: Request) {
   let normalized:any = {};
   let status = "provera_neuspela";
   try {
-    const vr = await fetch(qrUrl,{headers:{Accept:"application/json"},cache:"no-store"});
+    const vr = await fetch(qrUrl,{headers:{Accept:"application/json"},cache:"no-store",signal:AbortSignal.timeout(12000)});
     const text = await vr.text();
     if (!vr.ok) throw new Error(`HTTP ${vr.status}`);
     raw = JSON.parse(text);
     normalized = normalizeVerification(raw);
-    status = "provereno";
+    status = normalized.verification_valid === false ? "nevalidan" : normalized.verification_valid === true ? "provereno" : "provera_neuspela";
   } catch(e:any) {
     raw = { verificationError:e?.message || "Provera nije uspela." };
   }
