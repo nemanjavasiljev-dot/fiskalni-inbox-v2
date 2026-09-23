@@ -1,6 +1,7 @@
 import Link from "next/link";
 import InstallAppButton from "@/components/InstallAppButton";
 import BrandWordmark from "@/components/BrandWordmark";
+import LegalLinks from "@/components/LegalLinks";
 
 export default function Landing() {
   return (
@@ -132,7 +133,7 @@ export default function Landing() {
         </div>
       </main>
 
-      <footer className="footer"><div className="container">© 2026 FiscalBox · Skeniraj. Sačuvaj. Pošalji knjigovođi.</div></footer>
+      <footer className="footer"><div className="container footer-inner"><div>© 2026 FiscalBox · OSKAR ZOMBORI PR ALSET CO.</div><LegalLinks className="footer-legal"/></div></footer>
     </>
   );
 }

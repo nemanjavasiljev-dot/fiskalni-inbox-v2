@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import LoginPanel from "./panel";
 import BrandWordmark from "@/components/BrandWordmark";
+import LegalLinks from "@/components/LegalLinks";
 
 export default function LoginPage() {
   return (
@@ -16,6 +17,7 @@ export default function LoginPage() {
         <Suspense fallback={<div>Učitavanje prijave...</div>}>
           <LoginPanel />
         </Suspense>
+        <LegalLinks className="auth-legal-links"/>
       </div>
     </main>
   );
