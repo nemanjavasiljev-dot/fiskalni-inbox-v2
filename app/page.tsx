@@ -118,7 +118,7 @@ export default function Landing() {
         <section className="section">
           <div className="container">
             <div className="card" style={{padding:32,display:"flex",alignItems:"center",justifyContent:"space-between",gap:24,flexWrap:"wrap"}}>
-              <div><span className="pill">DESKTOP APP</span><h2 style={{margin:"10px 0 6px"}}>FiscalBox kao aplikacija na računaru.</h2><p className="muted" style={{margin:0}}>Instalacija je dostupna kroz Chrome, Edge i Firefox Web Apps na podržanom Windows-u.</p></div>
+              <div><span className="pill">DESKTOP APP</span><h2 style={{margin:"10px 0 6px"}}>FiscalBox kao aplikacija na računaru.</h2><p className="muted" style={{margin:0}}>Instalirajte FiscalBox kao desktop web aplikaciju. Na Windows-u preporučujemo Microsoft Edge ili Google Chrome za direktnu instalaciju.</p></div>
               <InstallAppButton/>
             </div>
           </div>
