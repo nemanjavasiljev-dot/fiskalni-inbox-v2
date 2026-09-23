@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, File, FileText, FolderOpen, Search, Send, Upload } from "lucide-react";
+import { Camera, Check, File, FileText, FolderOpen, Pencil, Search, Send, Upload, X } from "lucide-react";
 import QrScanner from "@/components/QrScanner";
 import UserBottomNav from "@/components/UserBottomNav";
 import DocumentScanner from "@/components/DocumentScanner";
@@ -11,6 +11,23 @@ import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 
 const dt = (v: string) => new Intl.DateTimeFormat("sr-RS", { dateStyle: "medium", timeStyle: "short" }).format(new Date(v));
 const bytes = (v: number) => v < 1024 ? `${v} B` : v < 1048576 ? `${(v / 1024).toFixed(1)} KB` : `${(v / 1048576).toFixed(1)} MB`;
+function splitFileName(name:string) {
+  const idx=name.lastIndexOf(".");
+  if(idx<=0) return {base:name,ext:""};
+  return {base:name.slice(0,idx),ext:name.slice(idx)};
+}
+function safeUserName(value:string) {
+  return value.trim().replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").slice(0,100);
+}
+function renamedFile(file:File, wanted:string) {
+  const {base,ext}=splitFileName(file.name);
+  const next=safeUserName(wanted)||base||"dokument";
+  return new File([file], `${next}${ext}`, {type:file.type,lastModified:file.lastModified});
+}
+
+type PendingFile = { file:File; name:string; rename:boolean };
+type PendingAdd = { source:"camera"|"upload"; items:PendingFile[] };
+
 
 export default function FilesWorkspace({ profile, organizations, activeOrg, initialDocuments }: any) {
   const router = useRouter();
@@ -23,6 +40,7 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
   const [scanQr, setScanQr] = useState(false);
   const [scanDocument, setScanDocument] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [pendingAdd,setPendingAdd] = useState<PendingAdd|null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -62,9 +80,32 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
     finally { setBusy(false); if (photoInput.current) photoInput.current.value=""; if (uploadInput.current) uploadInput.current.value=""; }
   }
 
-  async function upload(files: FileList | null, source: "camera" | "upload") {
+  function prepareUpload(files: FileList | null, source: "camera" | "upload") {
     if (!files?.length) return;
-    await uploadBatch(Array.from(files), source);
+    const list=Array.from(files);
+    if(list.length>10){setMessage("Možete dodati najviše 10 fajlova odjednom.");return;}
+    if(list.some(f=>f.size>20*1024*1024)){setMessage("Maksimalna veličina jednog fajla je 20 MB.");return;}
+    setMessage("");
+    setPendingAdd({
+      source,
+      items:list.map(file=>{
+        const {base}=splitFileName(file.name);
+        return {file,name:source==="camera"?`Fotografija ${new Intl.DateTimeFormat("sr-RS",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date()).replace(/[.:]/g,"-")}`:base,rename:source==="camera"};
+      })
+    });
+  }
+
+  function updatePending(index:number,patch:Partial<PendingFile>) {
+    setPendingAdd(old=>old?{...old,items:old.items.map((item,i)=>i===index?{...item,...patch}:item)}:old);
+  }
+
+  async function confirmPendingAdd() {
+    if(!pendingAdd) return;
+    const prepared=pendingAdd.items.map(item=>item.rename?renamedFile(item.file,item.name):item.file);
+    if(pendingAdd.source==="camera" && !pendingAdd.items[0]?.name.trim()){setMessage("Upišite naziv fotografije.");return;}
+    const source=pendingAdd.source;
+    setPendingAdd(null);
+    await uploadBatch(prepared,source);
   }
 
   async function sendSelected() {
@@ -93,8 +134,8 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
         <button className="card file-action" onClick={()=>setScanDocument(true)} disabled={busy}><FileText/><div><b>Skeniraj dokument</b><span>Otvori kameru i snimi dokument</span></div></button>
         <button className="card file-action" onClick={()=>photoInput.current?.click()} disabled={busy}><Camera/><div><b>Fotografiši</b><span>Dodaj fotografiju računa ili dokumenta</span></div></button>
         <button className="card file-action" onClick={()=>uploadInput.current?.click()} disabled={busy}><Upload/><div><b>Dodaj fajl</b><span>PDF, Word, Excel, XML, CSV, slike…</span></div></button>
-        <input ref={photoInput} hidden type="file" accept="image/*" capture="environment" onChange={e=>upload(e.target.files,"camera")}/>
-        <input ref={uploadInput} hidden type="file" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.xml,.txt,.zip" onChange={e=>upload(e.target.files,"upload")}/>
+        <input ref={photoInput} hidden type="file" accept="image/*" capture="environment" onChange={e=>prepareUpload(e.target.files,"camera")}/>
+        <input ref={uploadInput} hidden type="file" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.xml,.txt,.zip" onChange={e=>prepareUpload(e.target.files,"upload")}/>
       </div>}
 
       {message && <div className="file-message">{message}</div>}
@@ -118,6 +159,22 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
         </div>
       </div>
     </main>
+
+    {!isAccountant && pendingAdd && <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setPendingAdd(null)}}><div className="modal file-name-modal">
+      <div className="modal-head"><div><span className="pill">{pendingAdd.source==="camera"?"FOTOGRAFIJA":"DODAJ DOKUMENT"}</span><h2>{pendingAdd.source==="camera"?"Naziv fotografije":"Naziv dokumenta"}</h2></div><button className="btn" onClick={()=>setPendingAdd(null)}><X size={16}/> Zatvori</button></div>
+      {pendingAdd.source==="camera" ? <>
+        <p className="muted">Pre čuvanja upišite naziv fotografije.</p>
+        <div className="field"><label>Naziv fotografije *</label><input className="input" autoFocus value={pendingAdd.items[0]?.name||""} onChange={e=>updatePending(0,{name:e.target.value,rename:true})} maxLength={100} placeholder="npr. Račun za gorivo"/></div>
+      </> : <>
+        <p className="muted">Možete zadržati originalni naziv ili preimenovati dokument pre čuvanja.</p>
+        <div className="rename-file-list">{pendingAdd.items.map((item,index)=><div className="rename-file-row" key={`${item.file.name}-${index}`}>
+          <div className="rename-file-original"><FileText size={18}/><div><b>{item.file.name}</b><span>{bytes(item.file.size)}</span></div></div>
+          <label className="rename-toggle"><input type="checkbox" checked={item.rename} onChange={e=>updatePending(index,{rename:e.target.checked})}/><Pencil size={15}/> Preimenuj</label>
+          {item.rename && <input className="input" value={item.name} onChange={e=>updatePending(index,{name:e.target.value})} maxLength={100} placeholder="Novi naziv dokumenta"/>}
+        </div>)}</div>
+      </>}
+      <div className="document-scanner-actions"><button className="btn" onClick={()=>setPendingAdd(null)}>Odustani</button><button className="btn btn-primary" onClick={confirmPendingAdd} disabled={busy || (pendingAdd.source==="camera"&&!pendingAdd.items[0]?.name.trim())}><Check size={16}/> {pendingAdd.source==="camera"?"Sačuvaj fotografiju":`Dodaj ${pendingAdd.items.length} dokument(a)`}</button></div>
+    </div></div>}
 
     {!isAccountant && scanDocument && <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setScanDocument(false)}}><div className="modal document-scanner-modal"><DocumentScanner onClose={()=>setScanDocument(false)} onCapture={async(file)=>{setScanDocument(false);await uploadBatch([file],"scan")}}/></div></div>}
     {!isAccountant && scanQr && <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setScanQr(false)}}><div className="modal qr-modal"><div className="modal-head"><div><span className="pill">NOVI RAČUN</span><h2>QR skener</h2></div><button className="btn" onClick={()=>setScanQr(false)}>Zatvori</button></div><QrScanner organizationId={activeOrg.organization_id} onDone={()=>{setScanQr(false);router.refresh()}}/></div></div>}
