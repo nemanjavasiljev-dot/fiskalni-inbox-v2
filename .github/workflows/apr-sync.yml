@@ -23,4 +23,5 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           APR_OPEN_DATA_URL: https://openapi.apr.gov.rs/api/opendata/companies
           APR_SYNC_BATCH_SIZE: '750'
+          APR_REGISTRY_KIND: company
         run: node scripts/apr-sync.mjs

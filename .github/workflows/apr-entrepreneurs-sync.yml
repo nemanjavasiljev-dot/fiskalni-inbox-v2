@@ -1,0 +1,38 @@
+name: APR Entrepreneurs Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '55 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Import APR entrepreneur data into Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          APR_OPEN_DATA_URL: ${{ secrets.APR_ENTREPRENEURS_DATA_URL }}
+          APR_API_KEY: ${{ secrets.APR_ENTREPRENEURS_API_KEY }}
+          APR_BEARER_TOKEN: ${{ secrets.APR_ENTREPRENEURS_BEARER_TOKEN }}
+          APR_USERNAME: ${{ secrets.APR_ENTREPRENEURS_USERNAME }}
+          APR_PASSWORD: ${{ secrets.APR_ENTREPRENEURS_PASSWORD }}
+          APR_REGISTRY_KIND: entrepreneur
+          APR_SYNC_BATCH_SIZE: '750'
+        shell: bash
+        run: |
+          if [ -z "$APR_OPEN_DATA_URL" ]; then
+            echo "APR_ENTREPRENEURS_DATA_URL nije podešen. Workflow se preskače bez greške."
+            echo "Koristite isključivo zvanični APR web-servis / izvoz za koji imate pravo pristupa."
+            exit 0
+          fi
+          node scripts/apr-sync.mjs

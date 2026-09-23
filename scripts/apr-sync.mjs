@@ -20,6 +20,8 @@ const BATCH_SIZE = Math.max(
   )
 );
 
+const REGISTRY_KIND = String(process.env.APR_REGISTRY_KIND || 'company').toLowerCase() === 'entrepreneur' ? 'entrepreneur' : 'company';
+
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error(
     'Missing SUPABASE_URL / SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY).'
@@ -122,6 +124,37 @@ function scalar(obj, aliases) {
   }
 
   return '';
+}
+
+
+function deepScalar(obj, aliases, maxDepth = 5) {
+  const wanted = new Set(aliases.map(keyify));
+  const seen = new Set();
+
+  function walk(value, depth) {
+    if (!value || typeof value !== 'object' || seen.has(value) || depth > maxDepth) return '';
+    seen.add(value);
+    if (Array.isArray(value)) {
+      for (const item of value.slice(0, 100)) {
+        const found = walk(item, depth + 1);
+        if (found) return found;
+      }
+      return '';
+    }
+    for (const [k, v] of Object.entries(value)) {
+      if (wanted.has(keyify(k)) && ['string', 'number', 'boolean'].includes(typeof v)) {
+        const text = String(v ?? '').trim();
+        if (text) return text;
+      }
+    }
+    for (const v of Object.values(value)) {
+      const found = walk(v, depth + 1);
+      if (found) return found;
+    }
+    return '';
+  }
+
+  return walk(obj, 0);
 }
 
 
@@ -389,13 +422,23 @@ function rowFrom(
       )
     );
 
+  // APR izvori nisu potpuno uniformni. Ako PIB postoji bilo gde u originalnom
+  // zapisu, izvuci ga po semantičkom nazivu ključa, ali prihvati samo tačno 9 cifara.
+  const pibCandidate = digits(deepScalar(obj, [
+    'pib', 'poreski broj', 'poreskibroj', 'taxIdentificationNumber',
+    'tax identification number', 'taxId', 'taxNumber'
+  ]));
+  const pib = /^\d{9}$/.test(pibCandidate) ? pibCandidate : null;
+
   return {
     name,
 
     registration_number:
       registrationNumber,
 
-    pib: null,
+    pib,
+
+    registry_kind: REGISTRY_KIND,
 
     address:
       address || null,
@@ -572,10 +615,16 @@ function downloadAprJson(
             'application/json',
 
           'User-Agent':
-            'FiscalBox-APR-Sync/5.4',
+            'FiscalBox-APR-Sync/5.8',
 
           'Accept-Language':
             'sr-RS,sr;q=0.9,en;q=0.8',
+
+          ...(process.env.APR_API_KEY ? { 'X-API-Key': process.env.APR_API_KEY } : {}),
+          ...(process.env.APR_BEARER_TOKEN ? { Authorization: `Bearer ${process.env.APR_BEARER_TOKEN}` } : {}),
+          ...(!process.env.APR_BEARER_TOKEN && process.env.APR_USERNAME && process.env.APR_PASSWORD
+            ? { Authorization: `Basic ${Buffer.from(`${process.env.APR_USERNAME}:${process.env.APR_PASSWORD}`).toString('base64')}` }
+            : {}),
 
           Connection:
             'close'
@@ -822,7 +871,7 @@ async function main() {
 
 
   console.log(
-    `APR records detected: ${entries.length}`
+    `APR records detected: ${entries.length} (${REGISTRY_KIND})`
   );
 
 

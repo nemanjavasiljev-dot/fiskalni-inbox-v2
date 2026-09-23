@@ -44,6 +44,13 @@ function nonEmpty<T>(value: T | null | undefined, fallback: T | null | undefined
   return value;
 }
 
+
+function inferRegistryKind(existing: any, legalForm: string | null, name: string | null) {
+  if (existing?.registry_kind === 'entrepreneur') return 'entrepreneur';
+  const text = `${legalForm || ''} ${name || ''}`.toLowerCase();
+  return /(preduzet|preduzetnik|entrepreneur|\bpr\b)/i.test(text) ? 'entrepreneur' : 'company';
+}
+
 export async function lookupCompanyByPib(pibInput: unknown): Promise<LookupResult> {
   const pib = normalizePib(pibInput);
   if (!isValidPib(pib)) throw Object.assign(new Error('PIB mora imati tačno 9 cifara.'), { code: 'INVALID_PIB' });
@@ -107,6 +114,7 @@ export async function lookupCompanyByPib(pibInput: unknown): Promise<LookupResul
       registry_checked_at: now,
       registry_source: matchedApr ? 'NBS+APR' : 'NBS',
       source_status: matchedApr ? 'nbs_apr' : 'nbs',
+      registry_kind: inferRegistryKind(existing, nbs.legalForm, nbs.name),
       manual_review_required: false,
       updated_at: now,
     };

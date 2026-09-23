@@ -25,6 +25,7 @@ export type CompanySearchValue = {
   registry_source?: string | null;
   source_status?: string;
   manual_review_required?: boolean;
+  registry_kind?: 'company' | 'entrepreneur' | 'other';
 };
 
 type Props = {
@@ -172,7 +173,7 @@ export default function CompanySearch({
             <b>{value.name}</b>
             <span>MB: {value.registration_number || '—'}</span>
           </div>
-          <span className="company-search-apr-badge"><CheckCircle2 size={13} /> APR</span>
+          <span className="company-search-apr-badge"><CheckCircle2 size={13} /> {value.registry_kind === 'entrepreneur' ? 'APR · preduzetnik' : 'APR'}</span>
           {!disabled && <button type="button" className="company-search-change" onClick={clear}>Promeni</button>}
         </div>
       )}
@@ -192,7 +193,7 @@ export default function CompanySearch({
                 <span>MB: {c.registration_number || '—'}</span>
                 {c.activity_code && <small>Šifra delatnosti: {c.activity_code}</small>}
               </div>
-              <em>APR</em>
+              <em className={c.registry_kind === 'entrepreneur' ? 'active' : ''}>{c.registry_kind === 'entrepreneur' ? 'APR · preduzetnik' : 'APR · društvo'}</em>
             </button>
           ))}
           {!loading && message && <div className="company-search-state error-state">{message}</div>}
@@ -205,7 +206,7 @@ export default function CompanySearch({
           <div><span>Matični broj</span><b>{value.registration_number || '—'}</b></div>
           {value.activity_code && <div><span>Šifra delatnosti</span><b>{value.activity_code}</b></div>}
           <div className="company-search-source">
-            <span>Podaci iz APR baze · poslednja APR sinhronizacija: {fmtSync(value.apr_last_sync)}</span>
+            <span>{value.registry_kind === 'entrepreneur' ? 'APR registar preduzetnika' : 'APR registar privrednih društava'} · poslednja APR sinhronizacija: {fmtSync(value.apr_last_sync)}</span>
             {allowRefresh && (
               <button type="button" className="btn" onClick={refresh} disabled={refreshing}>
                 <RefreshCw size={14} className={refreshing ? 'spin' : ''} />

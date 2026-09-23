@@ -2,19 +2,22 @@
 
 import React from "react";
 
+type FiscalBoxWindow = Window & typeof globalThis & {
+  __fiscalBoxSwReady?: boolean;
+};
+
 export default function PwaRegister() {
   React.useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-
     let cancelled = false;
 
-    async function register() {
+    async function ensureRegistration() {
       try {
-        const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        let registration = await navigator.serviceWorker.getRegistration("/");
+        if (!registration) registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
         await navigator.serviceWorker.ready;
         if (cancelled) return;
-
-        // Proveri novu verziju SW-a bez čekanja na sledeću posetu.
+        (window as FiscalBoxWindow).__fiscalBoxSwReady = true;
         registration.update().catch(() => {});
         window.dispatchEvent(new Event("fiscalbox:pwa-state"));
       } catch (error) {
@@ -22,7 +25,7 @@ export default function PwaRegister() {
       }
     }
 
-    register();
+    ensureRegistration();
     return () => { cancelled = true; };
   }, []);
 
