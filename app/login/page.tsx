@@ -12,7 +12,7 @@ export default function LoginPage() {
           <BrandWordmark/>
         </Link>
         <h1>Prijava</h1>
-        <p className="muted">Prijavite se korisničkim imenom i lozinkom.</p>
+        <p className="muted">Prijavite se korisničkim imenom ili email adresom i lozinkom.</p>
         <Suspense fallback={<div>Učitavanje prijave...</div>}>
           <LoginPanel />
         </Suspense>

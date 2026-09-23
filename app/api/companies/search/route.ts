@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { APRSyncService } from '@/lib/apr-sync-service';
 import { checkSearchRateLimit, digitsOnly, sanitizeCompanyQuery, searchLocalCompanies } from '@/lib/company-registry';
 
+export const maxDuration = 60;
+
 function clientKey(request: Request) {
   const h=request.headers;
   const forwarded=h.get('x-forwarded-for')?.split(',')[0]?.trim();
@@ -19,14 +21,21 @@ export async function GET(request:Request){
     const exact=[8,9].includes(digits.length);
     const staleExact=exact&&local[0]?.apr_last_sync&&Date.now()-new Date(local[0].apr_last_sync).getTime()>30*24*60*60*1000;
     let warning='';
-    if(APRSyncService.isConfigured() && (exact ? !local.length||staleExact : local.length<8)){
+    if(exact ? !local.length||staleExact : local.length<8){
       try{
         await APRSyncService.searchAndSync(q,15);
         local=await searchLocalCompanies(q,15);
-      }catch(e:any){console.error('APR company search',e);warning='APR trenutno nije dostupan. Prikazani su podaci iz FiscalBox baze.';}
-    }else if(!APRSyncService.isConfigured()&&!local.length){
-      warning='APR web-servis još nije konfigurisan. Pretraga novih firmi trenutno nije dostupna.';
+      }catch(e:any){
+        console.error('APR company search',e);
+        warning='APR Open Data trenutno nije dostupan. Prikazani su podaci koji već postoje u FiscalBox bazi.';
+      }
     }
-    return NextResponse.json({results:local,apr_configured:APRSyncService.isConfigured(),warning});
-  }catch(e:any){console.error('companies-search',e);return NextResponse.json({error:'Pretraga firmi trenutno nije dostupna. Pokušajte ponovo.'},{status:500});}
+    if(!local.length&&digits.length===9&&APRSyncService.sourceMode()==='open-data'){
+      warning='APR Open Data skup možda nema PIB za ovu firmu. Probajte pretragu po nazivu firme.';
+    }
+    return NextResponse.json({results:local,apr_configured:true,apr_source:APRSyncService.sourceMode(),warning});
+  }catch(e:any){
+    console.error('companies-search',e);
+    return NextResponse.json({error:'Pretraga firmi trenutno nije dostupna. Pokušajte ponovo.'},{status:500});
+  }
 }

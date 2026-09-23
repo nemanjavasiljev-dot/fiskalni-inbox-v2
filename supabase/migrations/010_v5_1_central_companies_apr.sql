@@ -1,4 +1,5 @@
 -- FiscalBox V5.1: central company registry + APR synchronization standard
+-- FIXED: avoids schema-dependent unqualified similarity() calls on Supabase.
 
 create extension if not exists pg_trgm;
 
@@ -310,7 +311,10 @@ as $$
          when c.normalized_name=i.norm then 2
          when c.normalized_name like i.norm||'%' then 3
          else 4 end,
-    similarity(c.normalized_name,i.norm) desc,
+    -- pg_trgm may live in Supabase's extensions schema.  Do not depend on an
+    -- unqualified similarity() call here; exact/prefix matches are already
+    -- ranked above, then prefer the closest normalized-name length.
+    abs(length(c.normalized_name) - length(i.norm)) asc,
     c.name asc
   limit greatest(1,least(coalesce(result_limit,15),20));
 $$;

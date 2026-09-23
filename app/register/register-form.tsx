@@ -1,33 +1,130 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Building2, Calculator, Check, CreditCard, UserRound } from 'lucide-react';
-import CompanySearch, { type CompanySearchValue } from '@/components/CompanySearch';
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Building2, Calculator, Check, CreditCard, UserRound } from "lucide-react";
+import CompanySearch, { type CompanySearchValue } from "@/components/CompanySearch";
 
-type Role='company'|'accountant';
-type Plan='basic'|'premium';
+type Role = "company" | "accountant";
+type Plan = "basic" | "premium";
 
-export default function RegisterForm({initialPlan='basic',initialTrial=true}:{initialPlan?:string;initialTrial?:boolean}){
+function latinUsernameBase(value: string) {
+  const map: Record<string,string> = {
+    а:"a",б:"b",в:"v",г:"g",д:"d",ђ:"dj",е:"e",ж:"z",з:"z",и:"i",ј:"j",к:"k",л:"l",љ:"lj",м:"m",н:"n",њ:"nj",о:"o",п:"p",р:"r",с:"s",т:"t",ћ:"c",у:"u",ф:"f",х:"h",ц:"c",ч:"c",џ:"dz",ш:"s"
+  };
+  const latin=value.toLowerCase().split("").map(ch=>map[ch]??ch).join("");
+  return latin.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,".").replace(/^\.+|\.+$/g,"").slice(0,26) || "firma";
+}
+
+export default function RegisterForm({initialPlan="basic",initialTrial=true}:{initialPlan?:string;initialTrial?:boolean}) {
   const router=useRouter();
-  const [step,setStep]=useState(1);const [role,setRole]=useState<Role>('company');
-  const [username,setUsername]=useState('');const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [fullName,setFullName]=useState('');
+  const [step,setStep]=useState(1);
+  const [role,setRole]=useState<Role>("company");
   const [company,setCompany]=useState<CompanySearchValue|null>(null);
-  const [plan,setPlan]=useState<Plan>(initialPlan==='premium'?'premium':'basic');const [trial,setTrial]=useState(Boolean(initialTrial));
-  const [accountantCompany,setAccountantCompany]=useState<CompanySearchValue|null>(null);const [accountantEmail,setAccountantEmail]=useState('');const [accountantState,setAccountantState]=useState<any>(null);const [checkingAccountant,setCheckingAccountant]=useState(false);
-  const [busy,setBusy]=useState(false);const [error,setError]=useState('');
-  function next(){setError('');setStep(s=>Math.min(5,s+1));}function back(){setError('');setStep(s=>Math.max(1,s-1));}
-  function validateAccount(){if(!/^[a-z0-9._-]{3,30}$/.test(username.trim().toLowerCase()))return setError('Korisničko ime mora imati 3–30 znakova.'),false;if(!/^\S+@\S+\.\S+$/.test(email.trim()))return setError('Unesite ispravnu email adresu.'),false;if(password.length<8)return setError('Lozinka mora imati najmanje 8 znakova.'),false;setError('');return true;}
+  const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
+  const [plan,setPlan]=useState<Plan>(initialPlan==="premium"?"premium":"basic");
+  const [trial,setTrial]=useState(Boolean(initialTrial));
+  const [accountantCompany,setAccountantCompany]=useState<CompanySearchValue|null>(null);
+  const [accountantEmail,setAccountantEmail]=useState("");
+  const [accountantState,setAccountantState]=useState<any>(null);
+  const [checkingAccountant,setCheckingAccountant]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  const usernamePreview=useMemo(()=>company?latinUsernameBase(company.name):"",[company]);
 
-  async function checkAccountant(selected:CompanySearchValue|null){setAccountantCompany(selected);setAccountantState(null);if(!selected)return;setCheckingAccountant(true);try{const r=await fetch('/api/register/check-accountant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_id:selected.id})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Provera nije uspela.');setAccountantState(d.found?{...d,message:`Knjigovođa je registrovan: ${d.organization_name}. Veza će biti aktivirana po registraciji.`}:{found:false,message:'Knjigovodstvena firma je pronađena u APR-u, ali još nema FiscalBox nalog. Unesite email za poziv.'});}catch(e:any){setAccountantState({found:false,message:e.message||'Provera nije uspela.'});}finally{setCheckingAccountant(false);}}
-  async function startCheckout(orgId:string,selectedPlan:Plan){const r=await fetch('/api/subscriptions/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({organization_id:orgId,plan:selectedPlan})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Online pretplata nije mogla da se pokrene.');window.location.href=d.url;}
-  async function submit(){if(!company){setError('Izaberite firmu iz APR pretrage.');return;}setBusy(true);setError('');try{const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role,username:username.trim().toLowerCase(),email:email.trim().toLowerCase(),password,full_name:fullName,company_id:company.id,plan,trial,accountant_company_id:role==='company'?accountantCompany?.id||'':'',accountant_email:role==='company'?accountantEmail:''})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Registracija nije uspela.');if(d.checkout_required&&d.organization_id){await startCheckout(d.organization_id,plan);return;}router.push(d.redirect||'/app');router.refresh();}catch(e:any){setError(e.message||'Registracija nije uspela.');}finally{setBusy(false);}}
+  function next(){setError("");setStep(s=>Math.min(5,s+1));}
+  function back(){setError("");setStep(s=>Math.max(1,s-1));}
+  function validateAccount(){
+    if(!/^\S+@\S+\.\S+$/.test(email.trim())){setError("Unesite ispravnu email adresu.");return false;}
+    if(password.length<8){setError("Lozinka mora imati najmanje 8 znakova.");return false;}
+    setError("");return true;
+  }
 
-  return <div className="register-flow"><div className="register-progress">{[1,2,3,4,5].map(n=><span key={n} className={n<=step?'active':''}>{n}</span>)}</div>
-    {step===1&&<section className="register-step"><h2>Ko otvara nalog?</h2><p className="muted">Izaberite tip naloga.</p><div className="role-choice"><button className={`role-choice-card ${role==='company'?'selected':''}`} onClick={()=>setRole('company')}><Building2/><b>FIRMA</b><span>Fiskalni računi, dokumenti i knjigovođa.</span>{role==='company'&&<Check className="choice-check"/>}</button><button className={`role-choice-card ${role==='accountant'?'selected':''}`} onClick={()=>setRole('accountant')}><Calculator/><b>KNJIGOVOĐA</b><span>Klijenti, dokumentacija, PDV i zaposleni.</span>{role==='accountant'&&<Check className="choice-check"/>}</button></div><button className="btn btn-primary register-next" onClick={next}>Nastavi</button></section>}
-    {step===2&&<section className="register-step"><h2>Podaci za prijavu</h2><div className="setup-grid"><div className="field"><label>Ime i prezime</label><input className="input" value={fullName} onChange={e=>setFullName(e.target.value)}/></div><div className="field"><label>Korisničko ime</label><input className="input" value={username} onChange={e=>setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g,''))}/></div><div className="field setup-wide"><label>Email</label><input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div><div className="field setup-wide"><label>Lozinka</label><input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)}/></div></div>{error&&<div className="error">{error}</div>}<div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={()=>validateAccount()&&next()}>Nastavi</button></div></section>}
-    {step===3&&<section className="register-step"><h2>Pronađite svoju firmu</h2><p className="muted">Pretraga koristi centralnu FiscalBox bazu sinhronizovanu sa zvaničnim APR podacima. APR polja se ne unose ručno.</p><CompanySearch value={company} onSelect={setCompany} label={role==='accountant'?'Knjigovodstvena firma':'Firma'} required placeholder="Naziv firme, PIB ili matični broj" showDetails allowRefresh={false}/>{company&&<div className="company-confirm"><Check size={17}/><div><b>Ovo je moja firma</b><span>Potvrdite i nastavite registraciju.</span></div></div>}{error&&<div className="error">{error}</div>}<div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" disabled={!company} onClick={next}>Ovo je moja firma</button></div></section>}
-    {step===4&&<section className="register-step"><h2>Izaberite paket i način početka</h2><div className="register-plans register-plans-production"><button className={`register-plan ${plan==='basic'?'selected':''}`} onClick={()=>setPlan('basic')}><b>Basic</b><strong>1.250 RSD + PDV</strong><small>po korisniku / mesečno</small><span>QR, fajlovi, arhiva, knjigovođa</span></button><button className={`register-plan ${plan==='premium'?'selected':''}`} onClick={()=>setPlan('premium')}><span className="tag-inline">PREPORUČENO</span><b>Premium</b><strong>1.790 RSD + PDV</strong><small>po korisniku / mesečno</small><span>Napredni pregledi, PDF paketi i prioritetne funkcije</span></button></div><div className="trial-choice-grid"><button className={`trial-choice ${trial?'selected':''}`} onClick={()=>setTrial(true)}><span className="trial-icon">10</span><div><b>Probaj 10 dana besplatno</b><small>Bez kartice. Sve funkcije iz izabranog paketa.</small></div>{trial&&<Check/>}</button><button className={`trial-choice ${!trial?'selected':''}`} onClick={()=>setTrial(false)}><CreditCard/><div><b>Aktiviraj pretplatu odmah</b><small>Posle registracije otvara se sigurno online plaćanje.</small></div>{!trial&&<Check/>}</button></div><div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={()=>role==='company'?next():submit()} disabled={busy}>{role==='company'?'Nastavi':busy?'Kreiram nalog…':trial?'Pokreni 10 dana besplatno':'Registruj i pređi na plaćanje'}</button></div></section>}
-    {step===5&&role==='company'&&<section className="register-step"><h2>Povežite knjigovođu <span className="optional-label">opciono</span></h2><p className="muted">Pronađite knjigovodstvenu firmu istom APR pretragom. Ako nema FiscalBox nalog, možete ostaviti email za poziv.</p><CompanySearch value={accountantCompany} onSelect={checkAccountant} label="Knjigovodstvena firma" placeholder="Naziv knjigovođe, PIB ili matični broj" showDetails={false}/>{checkingAccountant&&<div className="lookup-message">Proveravam FiscalBox registraciju…</div>}{accountantState&&<div className={`accountant-result ${accountantState.found?'found':'not-found'}`}>{accountantState.found?<Check size={18}/>:<UserRound size={18}/>}<span>{accountantState.message}</span></div>}{accountantCompany&&accountantState&&!accountantState.found&&<div className="field"><label>Email knjigovođe</label><input className="input" type="email" value={accountantEmail} onChange={e=>setAccountantEmail(e.target.value)} placeholder="knjigovodja@firma.rs"/></div>}{error&&<div className="error">{error}</div>}<div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn" onClick={()=>{setAccountantCompany(null);setAccountantEmail('');submit()}} disabled={busy}>Preskoči za sada</button><button className="btn btn-primary" onClick={submit} disabled={busy}>{busy?'Kreiram nalog…':trial?'Pokreni 10 dana besplatno':'Registruj i pređi na plaćanje'}</button></div></section>}
+  async function checkAccountant(selected:CompanySearchValue|null){
+    setAccountantCompany(selected);setAccountantState(null);if(!selected)return;
+    setCheckingAccountant(true);
+    try{
+      const r=await fetch("/api/register/check-accountant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({company_id:selected.id})});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||"Provera nije uspela.");
+      setAccountantState(d.found?{...d,message:`Knjigovođa je registrovan: ${d.organization_name}. Veza će biti aktivirana po registraciji.`}:{found:false,message:"Knjigovodstvena firma je pronađena u APR-u, ali još nema FiscalBox nalog. Unesite email za poziv."});
+    }catch(e:any){setAccountantState({found:false,message:e.message||"Provera nije uspela."});}
+    finally{setCheckingAccountant(false);}
+  }
+
+  async function startCheckout(orgId:string,selectedPlan:Plan){
+    const r=await fetch("/api/subscriptions/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({organization_id:orgId,plan:selectedPlan})});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||"Online pretplata nije mogla da se pokrene.");window.location.href=d.url;
+  }
+
+  async function submit(){
+    if(!company){setError("Izaberite firmu iz APR pretrage.");return;}
+    if(!validateAccount())return;
+    setBusy(true);setError("");
+    try{
+      const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role,email:email.trim().toLowerCase(),password,company_id:company.id,plan,trial,accountant_company_id:role==="company"?accountantCompany?.id||"":"",accountant_email:role==="company"?accountantEmail:""})});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||"Registracija nije uspela.");
+      if(d.checkout_required&&d.organization_id){await startCheckout(d.organization_id,plan);return;}
+      router.push(d.redirect||"/app");router.refresh();
+    }catch(e:any){setError(e.message||"Registracija nije uspela.");}
+    finally{setBusy(false);}
+  }
+
+  return <div className="register-flow">
+    <div className="register-progress">{[1,2,3,4,5].map(n=><span key={n} className={n<=step?"active":""}>{n}</span>)}</div>
+
+    {step===1&&<section className="register-step">
+      <h2>Ko otvara nalog?</h2><p className="muted">Izaberite tip naloga.</p>
+      <div className="role-choice">
+        <button className={`role-choice-card ${role==="company"?"selected":""}`} onClick={()=>setRole("company")}><Building2/><b>FIRMA</b><span>Fiskalni računi, dokumenti i knjigovođa.</span>{role==="company"&&<Check className="choice-check"/>}</button>
+        <button className={`role-choice-card ${role==="accountant"?"selected":""}`} onClick={()=>setRole("accountant")}><Calculator/><b>KNJIGOVOĐA</b><span>Klijenti, dokumentacija, PDV i zaposleni.</span>{role==="accountant"&&<Check className="choice-check"/>}</button>
+      </div>
+      <button className="btn btn-primary register-next" onClick={next}>Nastavi</button>
+    </section>}
+
+    {step===2&&<section className="register-step">
+      <h2>Pronađite firmu</h2>
+      <p className="muted">Unesite samo PIB ili naziv firme. Ostale podatke preuzimamo iz APR podataka.</p>
+      <CompanySearch value={company} onSelect={setCompany} label={role==="accountant"?"Knjigovodstvena firma":"Firma"} required placeholder="PIB ili naziv firme" showDetails allowRefresh={false}/>
+      {company&&<div className="company-confirm"><Check size={17}/><div><b>Ovo je moja firma</b><span>Korisničko ime će biti generisano automatski iz naziva firme.</span>{usernamePreview&&<small>Primer: <strong>{usernamePreview}</strong></small>}</div></div>}
+      {error&&<div className="error">{error}</div>}
+      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" disabled={!company} onClick={next}>Ovo je moja firma</button></div>
+    </section>}
+
+    {step===3&&<section className="register-step">
+      <h2>Pristup nalogu</h2>
+      <p className="muted">Ime i prezime se ne traže u osnovnoj registraciji. Možete ih dodati kasnije u podešavanjima.</p>
+      <div className="setup-grid">
+        <div className="field setup-wide"><label>Email</label><input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></div>
+        <div className="field setup-wide"><label>Lozinka</label><input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></div>
+      </div>
+      {usernamePreview&&<div className="lookup-message">Korisničko ime će sistem automatski napraviti na osnovu naziva firme: <b>{usernamePreview}</b>. Ako je zauzeto, dodaće broj.</div>}
+      {error&&<div className="error">{error}</div>}
+      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={()=>validateAccount()&&next()}>Nastavi</button></div>
+    </section>}
+
+    {step===4&&<section className="register-step">
+      <h2>Izaberite paket i način početka</h2>
+      <div className="register-plans register-plans-production">
+        <button className={`register-plan ${plan==="basic"?"selected":""}`} onClick={()=>setPlan("basic")}><b>Basic</b><strong>1.250 RSD + PDV</strong><small>po korisniku / mesečno</small><span>QR, fajlovi, arhiva, knjigovođa</span></button>
+        <button className={`register-plan ${plan==="premium"?"selected":""}`} onClick={()=>setPlan("premium")}><span className="tag-inline">PREPORUČENO</span><b>Premium</b><strong>1.790 RSD + PDV</strong><small>po korisniku / mesečno</small><span>Napredni pregledi, PDF paketi i prioritetne funkcije</span></button>
+      </div>
+      <div className="trial-choice-grid">
+        <button className={`trial-choice ${trial?"selected":""}`} onClick={()=>setTrial(true)}><span className="trial-icon">10</span><div><b>Probaj 10 dana besplatno</b><small>Bez kartice. Sve funkcije iz izabranog paketa.</small></div>{trial&&<Check/>}</button>
+        <button className={`trial-choice ${!trial?"selected":""}`} onClick={()=>setTrial(false)}><CreditCard/><div><b>Aktiviraj pretplatu odmah</b><small>Posle registracije otvara se sigurno online plaćanje.</small></div>{!trial&&<Check/>}</button>
+      </div>
+      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={()=>role==="company"?next():submit()} disabled={busy}>{role==="company"?"Nastavi":busy?"Kreiram nalog…":trial?"Pokreni 10 dana besplatno":"Registruj i pređi na plaćanje"}</button></div>
+    </section>}
+
+    {step===5&&role==="company"&&<section className="register-step">
+      <h2>Povežite knjigovođu <span className="optional-label">opciono</span></h2>
+      <p className="muted">Pronađite knjigovodstvenu firmu. Ako nema FiscalBox nalog, možete ostaviti email za poziv.</p>
+      <CompanySearch value={accountantCompany} onSelect={checkAccountant} label="Knjigovodstvena firma" placeholder="PIB ili naziv knjigovođe" showDetails={false}/>
+      {checkingAccountant&&<div className="lookup-message">Proveravam FiscalBox registraciju…</div>}
+      {accountantState&&<div className={`accountant-result ${accountantState.found?"found":"not-found"}`}>{accountantState.found?<Check size={18}/>:<UserRound size={18}/>}<span>{accountantState.message}</span></div>}
+      {accountantCompany&&accountantState&&!accountantState.found&&<div className="field"><label>Email knjigovođe</label><input className="input" type="email" value={accountantEmail} onChange={e=>setAccountantEmail(e.target.value)} placeholder="knjigovodja@firma.rs"/></div>}
+      {error&&<div className="error">{error}</div>}
+      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn" onClick={()=>{setAccountantCompany(null);setAccountantEmail("");submit()}} disabled={busy}>Preskoči za sada</button><button className="btn btn-primary" onClick={submit} disabled={busy}>{busy?"Kreiram nalog…":trial?"Pokreni 10 dana besplatno":"Registruj i pređi na plaćanje"}</button></div>
+    </section>}
   </div>;
 }

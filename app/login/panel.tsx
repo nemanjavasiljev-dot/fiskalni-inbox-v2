@@ -34,7 +34,7 @@ export default function LoginPanel() {
   return (
     <>
       <form onSubmit={submit}>
-        <div className="field"><label>Korisničko ime</label><input className="input" autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} required /></div>
+        <div className="field"><label>Korisničko ime ili email</label><input className="input" autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} required /></div>
         <div className="field"><label>Lozinka</label><input className="input" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></div>
         {error && <div className="error">{error}</div>}
         <button className="btn btn-primary auth-login-submit" style={{width:"100%",marginTop:16}} disabled={busy}>{busy ? "Prijava…" : "Prijavi se"}</button>
