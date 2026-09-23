@@ -13,6 +13,7 @@ import MasterAdmin from "./master-admin";
 import PushNotificationOptIn from "@/components/PushNotificationOptIn";
 import { type CompanySearchValue } from "@/components/CompanySearch";
 import CompanyLookup from "@/components/CompanyLookup";
+import CompanyHeaderMenu from "@/components/CompanyHeaderMenu";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short"}).format(new Date(v)):"—";
@@ -226,14 +227,14 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
     finally{if(logoInputRef.current)logoInputRef.current.value="";}
   }
 
-  return <Shell profile={profile} hasBottomNav={isCompanyUser}>
+  return <Shell profile={profile} activeOrg={activeOrg} hasBottomNav={isCompanyUser} logoAvailable={logoAvailable} logoVersion={logoVersion}>
     <div className="app-head company-home-head" id="home">
       <div className="company-identity">
         {activeOrg&&<div className="company-logo-wrap">
           {logoAvailable?<img className="company-logo-image" src={`/api/org/logo?organization_id=${activeOrg.organization_id}&v=${logoVersion}`} alt={`Logo ${activeOrg.name}`}/>:<div className="company-logo-placeholder">{String(activeOrg.name||"F").slice(0,1).toUpperCase()}</div>}
           {isCompanyUser&&<><button className="company-logo-edit" type="button" onClick={()=>logoInputRef.current?.click()} title="Dodaj ili promeni logo"><ImagePlus size={16}/></button><input ref={logoInputRef} hidden type="file" accept="image/*" onChange={e=>uploadLogo(e.target.files?.[0])}/></>}
         </div>}
-        <div><span className="pill">{role}</span><h1>{activeOrg?.name||"FiscalBox"}</h1><p className="muted">{activeOrg?.pib?`PIB ${activeOrg.pib}`:"Izaberite ili kreirajte firmu."}</p></div>
+        <div><span className="pill">{role}</span><h1 className="company-name-heading">{activeOrg?.name||"FiscalBox"}</h1><p className="muted">{activeOrg?.pib?`PIB ${activeOrg.pib}`:"Izaberite ili kreirajte firmu."}</p></div>
       </div>
       <div className="actions">
         {organizations.length>1&&<select className="select" value={activeOrg?.organization_id||""} onChange={e=>router.push("/app?org="+e.target.value)}>{organizations.map((o:any)=><option value={o.organization_id} key={o.organization_id}>{o.name}</option>)}</select>}
@@ -263,7 +264,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   </Shell>;
 }
 
-function Shell({profile,children,hasBottomNav=false}:any){return <div className={`app-shell ${hasBottomNav?"with-bottom-nav":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><div className="actions"><PushNotificationOptIn/><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header><main className="container app-main">{children}</main></div>}
+function Shell({profile,activeOrg,children,hasBottomNav=false,logoAvailable=false,logoVersion=0}:any){return <div className={`app-shell ${hasBottomNav?"with-bottom-nav":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><div className="appbar-account-actions"><div className="appbar-push"><PushNotificationOptIn/></div><CompanyHeaderMenu profile={profile} organization={activeOrg} logoAvailable={logoAvailable} logoVersion={logoVersion}/></div></div></header><main className="container app-main">{children}</main></div>}
 function ServiceBlocked({profile,reason}:any){return <div className="app-shell"><header className="appbar"><div className="container appbar-in"><a className="brand" href="/"><span className="logo">F</span><BrandWordmark/></a><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></header><main className="container app-main"><div className="card service-blocked"><span className="pill">USLUGA BLOKIRANA</span><h1>FiscalBox pristup je privremeno blokiran</h1><p>{reason||"Obratite se FiscalBox administratoru radi ponovne aktivacije usluge."}</p><small>Nalog: {profile.username}</small></div></main></div>}
 
 function PendingCompanyAccess({requests}:any){return <div className="card pending-company-access"><span className="pill">ZAHTEV POSLAT</span><h2>Firma već ima aktivan FiscalBox nalog</h2><p className="muted">Nećemo praviti duplikat firme niti vam automatski dati administratorska prava. Postojeći administrator mora da odobri vaš zahtev za pristup.</p>{(requests||[]).map((r:any)=><div key={r.id} className="pending-company-access-row"><b>{r.organizations?.name||'Firma'}</b><span>{r.organizations?.pib?`PIB ${r.organizations.pib} · `:''}zahtev na čekanju</span></div>)}</div>}

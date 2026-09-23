@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BrandWordmark from "@/components/BrandWordmark";
 import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
+import CompanyHeaderMenu from "@/components/CompanyHeaderMenu";
 import { CreditCard, Download, FileText } from "lucide-react";
 
 const money=(v:any,currency="RSD")=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:String(currency||"RSD").toUpperCase()}).format(Number(v||0));
@@ -15,7 +16,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const { data: profile } = await supabase.from("profiles").select("*").eq("user_id",user.id).single();
   if(!profile) redirect("/login");
   const { data: memberships } = await supabase.from("organization_members")
-    .select("organization_id,role,accounting_access_role,organizations(id,name,pib,organization_type,owner_user_id)")
+    .select("organization_id,role,accounting_access_role,organizations(id,name,pib,organization_type,owner_user_id,logo_path)")
     .eq("user_id",user.id).in("role",["owner","employee"]);
   const owned=(memberships||[]).map((m:any)=>({organization_id:m.organization_id,role:m.role,accounting_access_role:m.accounting_access_role,...m.organizations}));
   const ids=owned.map((o:any)=>o.organization_id);
@@ -30,6 +31,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   }
   const isAccountant=profile.global_role==="accountant";
   const accountingOrg=owned.find((o:any)=>o.organization_type==="accounting");
+  const companyOrg=owned.find((o:any)=>o.organization_type!=="accounting")||owned[0];
   const isAdmin=Boolean(accountingOrg&&(accountingOrg.owner_user_id===user.id||accountingOrg.accounting_access_role==="admin"));
   const counts={paid:invoices.filter(i=>i.status==="paid").length,unpaid:invoices.filter(i=>i.status==="unpaid").length};
   const content=<>
@@ -38,5 +40,5 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
     <div className="billing-filter"><a className={status==="all"?"active":""} href="/app/billing">Svi</a><a className={status==="unpaid"?"active":""} href="/app/billing?status=unpaid">Neplaćeni</a><a className={status==="paid"?"active":""} href="/app/billing?status=paid">Plaćeni</a><a className={status==="refunded"?"active":""} href="/app/billing?status=refunded">Refundirani</a></div>
     <div className="card billing-table"><div className="table-wrap"><table><thead><tr><th>Broj</th><th>Datum</th><th>Firma</th><th>Paket</th><th>Iznos</th><th>Status</th><th>Izvor</th><th>Dokument</th></tr></thead><tbody>{invoices.map((i:any)=><tr key={i.id}><td><b>{i.invoice_number}</b><div className="muted" style={{fontSize:10}}>{i.document_type==="proforma"?"Predračun":"Račun"}</div></td><td>{date(i.issued_at)}</td><td>{i.recipient_name}</td><td>{String(i.plan||"").toUpperCase()} · {i.quantity} korisnik(a)</td><td><b>{money(i.total_amount,i.currency)}</b><div className="muted" style={{fontSize:10}}>evidentirano</div></td><td><span className={`billing-status ${i.status}`}>{statusLabel(i.status)}</span></td><td>{i.provider==="lemonsqueezy"?"ONLINE PRETPLATA":"FISCALBOX"}</td><td><a className="btn" href={`/api/billing/invoices/${i.id}/pdf`} target={i.external_invoice_url?"_blank":undefined}><Download size={15}/> {i.external_invoice_url?"Račun":"PDF"}</a></td></tr>)}{!invoices.length&&<tr><td colSpan={8}><div className="empty-state">Još nema dokumenata naplate za izabrani filter.</div></td></tr>}</tbody></table></div></div>
   </>;
-  return <div className={`app-shell ${isAccountant?"accountant-shell":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix={isAccountant?" · KNJIGO":""}/></a><div className="actions"><a className="btn" href="/app">← Nazad</a><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>{isAccountant?<div className="accountant-desktop-layout"><AccountantDesktopMenu isAdmin={isAdmin}/><main className="app-main accountant-main">{content}</main></div>:<main className="container app-main">{content}</main>}</div>;
+  return <div className={`app-shell ${isAccountant?"accountant-shell":""}`}><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix={isAccountant?" · KNJIGO":""}/></a>{isAccountant?<div className="actions"><a className="btn" href="/app">← Nazad</a><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div>:<CompanyHeaderMenu profile={profile} organization={companyOrg}/>}</div></header>{isAccountant?<div className="accountant-desktop-layout"><AccountantDesktopMenu isAdmin={isAdmin}/><main className="app-main accountant-main">{content}</main></div>:<main className="container app-main">{content}</main>}</div>;
 }

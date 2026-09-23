@@ -12,7 +12,7 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
 
   const { data: memberships } = await supabase
     .from("organization_members")
-    .select("organization_id,role,organizations(id,name,pib,plan,status)")
+    .select("organization_id,role,organizations(id,name,pib,plan,status,logo_path)")
     .eq("user_id", user.id);
 
   const params = await searchParams;

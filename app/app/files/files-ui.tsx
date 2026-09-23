@@ -7,6 +7,7 @@ import QrScanner from "@/components/QrScanner";
 import UserBottomNav from "@/components/UserBottomNav";
 import DocumentScanner from "@/components/DocumentScanner";
 import BrandWordmark from "@/components/BrandWordmark";
+import CompanyHeaderMenu from "@/components/CompanyHeaderMenu";
 import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 
 const dt = (v: string) => new Intl.DateTimeFormat("sr-RS", { dateStyle: "medium", timeStyle: "short" }).format(new Date(v));
@@ -126,9 +127,9 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
   function iconFor(d: any) { return String(d.mime_type || "").startsWith("image/") ? <FileIcon size={20}/> : <FileText size={20}/>; }
 
   return <div className={`app-shell ${!isAccountant ? "with-bottom-nav" : ""}`}>
-    <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><div className="actions"><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>
+    <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><CompanyHeaderMenu profile={profile} organization={activeOrg}/></div></header>
     <main className="container app-main">
-      <div className="app-head files-head"><div><span className="pill">{isAccountant ? "DOKUMENTI KLIJENTA" : "FAJLOVI"}</span><h1>{activeOrg.name}</h1><p className="muted">{isAccountant ? "Dokumenti koje vam je klijent poslao." : "Skenirajte, fotografišite ili dodajte dokument i prosledite ga knjigovođi."}</p></div><div className="actions">{organizations.length>1 && <select className="select" value={activeOrg.organization_id} onChange={e=>router.push(`/app/files?org=${e.target.value}`)}>{organizations.map((o:any)=><option key={o.organization_id} value={o.organization_id}>{o.name}</option>)}</select>}</div></div>
+      <div className="app-head files-head"><div><span className="pill">{isAccountant ? "DOKUMENTI KLIJENTA" : "FAJLOVI"}</span><h1 className="company-name-heading">{activeOrg.name}</h1><p className="muted">{isAccountant ? "Dokumenti koje vam je klijent poslao." : "Skenirajte, fotografišite ili dodajte dokument i prosledite ga knjigovođi."}</p></div><div className="actions">{organizations.length>1 && <select className="select" value={activeOrg.organization_id} onChange={e=>router.push(`/app/files?org=${e.target.value}`)}>{organizations.map((o:any)=><option key={o.organization_id} value={o.organization_id}>{o.name}</option>)}</select>}</div></div>
 
       {!isAccountant && <div className="grid file-action-grid">
         <button className="card file-action" onClick={()=>setScanDocument(true)} disabled={busy}><FileText/><div><b>Skeniraj dokument</b><span>Otvori kameru i snimi dokument</span></div></button>
