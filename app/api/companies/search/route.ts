@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   } catch (e) {
     console.error('companies-search', e);
     return NextResponse.json(
-      { error: 'Pretraga firmi trenutno nije dostupna. Proverite da li je SQL 012 pokrenut.' },
+      { error: 'Pretraga firmi trenutno nije dostupna. Proverite Supabase konekciju i SQL migracije.' },
       { status: 500 },
     );
   }

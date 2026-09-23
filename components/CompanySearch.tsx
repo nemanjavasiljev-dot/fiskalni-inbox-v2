@@ -19,6 +19,10 @@ export type CompanySearchValue = {
   founded_at: string | null;
   apr_source_id: string | null;
   apr_last_sync: string | null;
+  short_name?: string | null;
+  nbs_last_check?: string | null;
+  registry_checked_at?: string | null;
+  registry_source?: string | null;
   source_status?: string;
   manual_review_required?: boolean;
 };

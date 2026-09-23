@@ -17,6 +17,10 @@ export type CompanyRecord = {
   founded_at: string | null;
   apr_source_id: string | null;
   apr_last_sync: string | null;
+  short_name?: string | null;
+  nbs_last_check?: string | null;
+  registry_checked_at?: string | null;
+  registry_source?: string | null;
   apr_raw?: unknown;
   source_status?: string;
   manual_review_required?: boolean;
@@ -69,6 +73,10 @@ export function publicCompany(company: any): CompanyRecord {
     founded_at: company.founded_at || null,
     apr_source_id: company.apr_source_id || null,
     apr_last_sync: company.apr_last_sync || null,
+    short_name: company.short_name || null,
+    nbs_last_check: company.nbs_last_check || null,
+    registry_checked_at: company.registry_checked_at || null,
+    registry_source: company.registry_source || null,
     source_status: company.source_status || undefined,
     manual_review_required: Boolean(company.manual_review_required),
   };

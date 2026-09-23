@@ -36,12 +36,12 @@ export async function POST(request:Request){
 
   if(!EMAIL.test(email))return NextResponse.json({error:'Unesite ispravnu email adresu.'},{status:400});
   if(password.length<8)return NextResponse.json({error:'Lozinka mora imati najmanje 8 znakova.'},{status:400});
-  if(!companyId)return NextResponse.json({error:'Izaberite firmu iz APR pretrage.'},{status:400});
+  if(!companyId)return NextResponse.json({error:'Pronađite i izaberite firmu.'},{status:400});
   if(accountantEmail&&!EMAIL.test(accountantEmail))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});
 
   const admin=createAdminClient();
   const {data:company}=await admin.from('companies').select('*').eq('id',companyId).maybeSingle();
-  if(!company)return NextResponse.json({error:'Izabrana firma više nije dostupna. Ponovite APR pretragu.'},{status:400});
+  if(!company)return NextResponse.json({error:'Izabrana firma više nije dostupna. Ponovite pretragu registra.'},{status:400});
 
   const {data:existingEmail}=await admin.from('profiles').select('user_id').eq('auth_email',email).maybeSingle();
   if(existingEmail)return NextResponse.json({error:'Email adresa je već registrovana.'},{status:409});

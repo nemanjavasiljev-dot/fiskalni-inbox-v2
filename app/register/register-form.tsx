@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Calculator, Check, CreditCard, UserRound } from "lucide-react";
-import CompanySearch, { type CompanySearchValue } from "@/components/CompanySearch";
+import { type CompanySearchValue } from "@/components/CompanySearch";
+import CompanyLookup from "@/components/CompanyLookup";
 
 type Role = "company" | "accountant";
 type Plan = "basic" | "premium";
@@ -47,7 +48,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
     try{
       const r=await fetch("/api/register/check-accountant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({company_id:selected.id})});
       const d=await r.json();if(!r.ok)throw new Error(d.error||"Provera nije uspela.");
-      setAccountantState(d.found?{...d,message:`Knjigovođa je registrovan: ${d.organization_name}. Veza će biti aktivirana po registraciji.`}:{found:false,message:"Knjigovodstvena firma je pronađena u APR-u, ali još nema FiscalBox nalog. Unesite email za poziv."});
+      setAccountantState(d.found?{...d,message:`Knjigovođa je registrovan: ${d.organization_name}. Veza će biti aktivirana po registraciji.`}:{found:false,message:"Knjigovodstvena firma je pronađena u registru, ali još nema FiscalBox nalog. Unesite email za poziv."});
     }catch(e:any){setAccountantState({found:false,message:e.message||"Provera nije uspela."});}
     finally{setCheckingAccountant(false);}
   }
@@ -58,7 +59,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
   }
 
   async function submit(){
-    if(!company){setError("Izaberite firmu iz APR pretrage.");return;}
+    if(!company){setError("Pronađite i izaberite firmu.");return;}
     if(!validateAccount())return;
     setBusy(true);setError("");
     try{
@@ -84,8 +85,8 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
 
     {step===2&&<section className="register-step">
       <h2>Pronađite firmu</h2>
-      <p className="muted">Unesite naziv firme ili matični broj. Podatke preuzimamo iz lokalno sinhronizovane APR baze.</p>
-      <CompanySearch value={company} onSelect={setCompany} label={role==="accountant"?"Knjigovodstvena firma":"Firma"} required placeholder="Naziv firme ili matični broj" showDetails allowRefresh={false}/>
+      <p className="muted">Unesite PIB. Kada unesete svih 9 cifara, FiscalBox automatski proverava zvanične registre i povezuje rezultat sa lokalnom APR bazom. Ako PIB provera nije dostupna, možete nastaviti po nazivu ili matičnom broju.</p>
+      <CompanyLookup value={company} onSelect={setCompany} label={role==="accountant"?"PIB knjigovodstvene firme":"PIB"} required showDetails/>
       {company&&<div className="company-confirm"><Check size={17}/><div><b>Ovo je moja firma</b><span>Korisničko ime će biti generisano automatski iz naziva firme.</span>{usernamePreview&&<small>Primer: <strong>{usernamePreview}</strong></small>}</div></div>}
       {error&&<div className="error">{error}</div>}
       <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" disabled={!company} onClick={next}>Ovo je moja firma</button></div>
@@ -119,7 +120,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
     {step===5&&role==="company"&&<section className="register-step">
       <h2>Povežite knjigovođu <span className="optional-label">opciono</span></h2>
       <p className="muted">Pronađite knjigovodstvenu firmu. Ako nema FiscalBox nalog, možete ostaviti email za poziv.</p>
-      <CompanySearch value={accountantCompany} onSelect={checkAccountant} label="Knjigovodstvena firma" placeholder="Naziv knjigovodstvene firme ili matični broj" showDetails={false}/>
+      <CompanyLookup value={accountantCompany} onSelect={checkAccountant} label="PIB knjigovodstvene firme" showDetails={false}/>
       {checkingAccountant&&<div className="lookup-message">Proveravam FiscalBox registraciju…</div>}
       {accountantState&&<div className={`accountant-result ${accountantState.found?"found":"not-found"}`}>{accountantState.found?<Check size={18}/>:<UserRound size={18}/>}<span>{accountantState.message}</span></div>}
       {accountantCompany&&accountantState&&!accountantState.found&&<div className="field"><label>Email knjigovođe</label><input className="input" type="email" value={accountantEmail} onChange={e=>setAccountantEmail(e.target.value)} placeholder="knjigovodja@firma.rs"/></div>}
