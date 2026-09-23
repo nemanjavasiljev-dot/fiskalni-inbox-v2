@@ -107,7 +107,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       const p:any=profileMap.get(id)||{};
       return {id,name:p.full_name||p.username||p.auth_email||"Knjigovođa",email:p.auth_email||"",clients,users,payout:users*250};
     }).sort((a:any,b:any)=>b.payout-a.payout);
-    const gross=companyOrgs.reduce((sum:number,o:any)=>sum+(companyUsersByOrg.get(String(o.id))||1)*(o.plan==="premium"?1790:1250),0);
+    const gross=companyOrgs.reduce((sum:number,o:any)=>sum+(companyUsersByOrg.get(String(o.id))||1)*(o.plan==="premium"?2000:1250),0);
     const payouts=accountants.reduce((sum:number,a:any)=>sum+a.payout,0);
     const profit=gross-payouts;
 

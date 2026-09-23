@@ -25,11 +25,14 @@ export async function sendConnectionRequestEmail(opts:{to:string;senderName:stri
   });
 }
 
-export async function sendBillingInvoiceEmail(opts:{to:string;organizationName:string;invoiceNumber:string;plan:string;totalAmount:number;billingUrl:string;pdf:Buffer}){
+export async function sendBillingInvoiceEmail(opts:{to:string;organizationName:string;invoiceNumber:string;plan:string;totalAmount:number;billingUrl:string;pdf:Buffer;documentType?:'proforma'|'invoice'}){
+  const isInvoice=opts.documentType==='invoice';
+  const label=isInvoice?'račun':'predračun';
+  const subject=isInvoice?`FiscalBox račun ${opts.invoiceNumber} · ${opts.organizationName}`:`FiscalBox predračun ${opts.invoiceNumber} · ${opts.organizationName}`;
   return sendEmail({
     to:opts.to,
-    subject:`FiscalBox predracun ${opts.invoiceNumber} · ${opts.organizationName}`,
-    html:`<p>Postovani,</p><p>za firmu <strong>${escapeHtml(opts.organizationName)}</strong> kreiran je FiscalBox predracun za paket <strong>${escapeHtml(opts.plan.toUpperCase())}</strong>.</p><p>Ukupan iznos sa PDV: <strong>${new Intl.NumberFormat('sr-RS',{style:'currency',currency:'RSD'}).format(opts.totalAmount)}</strong>.</p><p>Predracun je u PDF prilogu.${opts.billingUrl?` Arhivu mozete otvoriti i u <a href="${escapeHtml(opts.billingUrl)}">FiscalBox → Moji racuni</a>.`:''}</p><p style="font-size:12px;color:#68736e">Dokument je dostupan i u vašoj FiscalBox arhivi. Za pitanja o naplati odgovorite na ovaj email.</p>`,
+    subject,
+    html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#17221E;max-width:620px;margin:auto"><h2 style="margin-bottom:8px">FiscalBox ${label}</h2><p>Poštovani,</p><p>za firmu <strong>${escapeHtml(opts.organizationName)}</strong> ${isInvoice?'izdat je finalni račun nakon verifikovane uplate':'kreiran je predračun za izabranu pretplatu'} za paket <strong>${escapeHtml(opts.plan.toUpperCase())}</strong>.</p><p>Ukupan iznos: <strong>${new Intl.NumberFormat('sr-RS',{style:'currency',currency:'RSD'}).format(opts.totalAmount)}</strong>. Izdavalac OSKAR ZOMBORI PR ALSET CO. nije u sistemu PDV-a, pa PDV nije obračunat.</p><p>${isInvoice?'Račun je u PDF prilogu i nalazi se u rubrici <b>Moji računi → Plaćeno</b>.':'Predračun je u PDF prilogu, sadrži NBS IPS QR za plaćanje i nalazi se u rubrici <b>Moji računi → Neplaćeno</b>.'}${opts.billingUrl?` <a href="${escapeHtml(opts.billingUrl)}">Otvori FiscalBox → Moji računi</a>.`:''}</p><p style="font-size:12px;color:#68736e">${isInvoice?'Uplata je verifikovana u FiscalBox sistemu.':'Finalni račun se izdaje nakon evidentiranja i verifikacije uplate.'}</p></div>`,
     attachments:[{filename:`${opts.invoiceNumber}.pdf`,content:opts.pdf.toString('base64')}]
   });
 }

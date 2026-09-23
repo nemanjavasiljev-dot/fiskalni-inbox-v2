@@ -120,7 +120,8 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
         ["active","paused","past_due"].includes(String(sub?.status||"")) ||
         (sub?.status==="cancelled" && new Date(sub?.ends_at||sub?.current_period_end||0).getTime()>now)
       );
-      if(!trialOk&&!providerOk){
+      const bankOk=String(sub?.provider||"")==="bank_transfer" && sub?.status==="active" && new Date(sub?.current_period_end||sub?.renews_at||0).getTime()>now;
+      if(!trialOk&&!providerOk&&!bankOk){
         return <SubscriptionRequired organization={{...billingOrg,id:billingOrg.organization_id}} subscription={sub||{plan:billingOrg.plan,status:"pending_checkout"}} profile={profile}/>;
       }
     }
@@ -135,7 +136,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   let master:any = null;
   if (profile.global_role === "master_admin") {
-    const [{data:organizations},{data:allMembers},{data:allProfiles},{data:allReceipts},{data:billingInvoices},{data:payouts},{data:rewards},{data:issuerSettings},{data:allSubscriptions},{data:accountantCompanyRelations}] = await Promise.all([
+    const [{data:organizations},{data:allMembers},{data:allProfiles},{data:allReceipts},{data:billingInvoices},{data:payouts},{data:rewards},{data:issuerSettings},{data:allSubscriptions},{data:accountantCompanyRelations},{data:bankTransactions}] = await Promise.all([
       supabase.from("organizations").select("*").order("created_at",{ascending:false}),
       supabase.from("organization_members").select("id,organization_id,user_id,role,accounting_access_role"),
       supabase.from("profiles").select("user_id,username,full_name,auth_email,global_role,created_at"),
@@ -145,9 +146,10 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
       supabase.from("accountant_rewards").select("*").order("created_at",{ascending:false}).limit(1000),
       supabase.from("billing_issuer_settings").select("*").eq("active",true).eq("is_demo",false).limit(1).maybeSingle(),
       supabase.from("subscriptions").select("*"),
-      admin.from("accountant_company").select("*").order("created_at",{ascending:false}).limit(3000)
+      admin.from("accountant_company").select("*").order("created_at",{ascending:false}).limit(3000),
+      admin.from("bank_transactions").select("*").order("booked_at",{ascending:false}).limit(1000)
     ]);
-    master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[],billingInvoices:billingInvoices||[],payouts:payouts||[],rewards:rewards||[],issuerSettings:issuerSettings||null,subscriptions:allSubscriptions||[],accountantCompanyRelations:accountantCompanyRelations||[]};
+    master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[],billingInvoices:billingInvoices||[],payouts:payouts||[],rewards:rewards||[],issuerSettings:issuerSettings||null,subscriptions:allSubscriptions||[],accountantCompanyRelations:accountantCompanyRelations||[],bankTransactions:bankTransactions||[],bankConfigured:Boolean(process.env.BANK_API_URL&&process.env.BANK_API_TOKEN)};
   }
 
   return <Dashboard profile={profile} organizations={orgs} activeOrg={activeOrg||null} receipts={receipts} master={master} accountantOverview={accountantOverview} accountantContext={accountantContext} accessContext={accessContext} />;

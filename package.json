@@ -1,6 +1,6 @@
 {
   "name": "fiscalbox-app",
-  "version": "5.8.8",
+  "version": "5.8.9",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -20,7 +20,8 @@
     "react-dom": "^19.1.0",
     "web-push": "^3.6.7",
     "@zxing/browser": "^0.1.5",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
