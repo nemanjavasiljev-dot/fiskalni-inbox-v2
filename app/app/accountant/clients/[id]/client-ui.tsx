@@ -3,6 +3,8 @@
 import React, {useMemo, useState} from "react";
 import { Archive, CheckCircle2, Download, Eye, FileText, Printer, ReceiptText } from "lucide-react";
 import { useRouter } from "next/navigation";
+import BrandWordmark from "@/components/BrandWordmark";
+import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short",timeStyle:"short"}).format(new Date(v)):"—";
@@ -47,7 +49,7 @@ export default function ClientWorkspace({organization,selectedMonth,receipts,doc
     window.open(`/api/documents/${d.id}/download?mode=${mode}`,"_blank","noopener,noreferrer");
   }
 
-  return <div className="app-shell accountant-shell"><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><span>Fiskalni Inbox · KNJIGO</span></a><a className="btn" href="/app">← Svi klijenti</a></div></header><main className="container app-main">
+  return <div className="app-shell accountant-shell"><header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a><a className="btn" href="/app">← Svi klijenti</a></div></header><div className="accountant-desktop-layout"><AccountantDesktopMenu/><main className="app-main accountant-main">
     <div className="app-head accountant-client-head"><div className="client-workspace-identity"><ClientHeaderLogo organization={organization}/><div><span className="pill">KLIJENT</span><h1>{organization.name}</h1><p className="muted">PIB {organization.pib||"—"} · {organization.address||""}</p></div></div><label className="archive-select"><span>Obračunski mesec</span><select className="select" value={selectedMonth} onChange={e=>router.push(`/app/accountant/clients/${organization.id}?month=${e.target.value}`)}>{monthOptions.map((m:string)=><option key={m} value={m}>{monthLabel(m)}</option>)}</select></label></div>
 
     <div className="grid client-period-stats"><MiniStat label="Primljeni računi" value={monthReceipts.length}/><MiniStat label="Preuzeti računi" value={downloadedR}/><MiniStat label="Primljeni dokumenti" value={monthDocuments.length}/><MiniStat label="Preuzeti dokumenti" value={downloadedD}/><MiniStat label="Ulazni PDV" value={money(vat)}/></div>
@@ -59,7 +61,7 @@ export default function ClientWorkspace({organization,selectedMonth,receipts,doc
     {tab==="documents"&&<div className="card files-panel accountant-documents"><div className="files-toolbar"><div><b>Primljeni dokumenti</b><div className="muted" style={{fontSize:12}}>{monthLabel(selectedMonth)}</div></div></div><div className="files-list">{monthDocuments.map((d:any)=>{const st:any=dMap.get(String(d.id));return <div className="file-row accountant-file-row" key={d.id}><div className="file-type-icon"><FileText size={20}/></div><div className="file-main"><b>{d.file_name}</b><span>Primljeno {dt(d.sent_at||d.created_at)}</span></div><div className="accountant-file-status"><ItemStatus status={st}/></div><div className="item-actions"><button className="btn" onClick={()=>openDocument(d,"view")}><Eye size={15}/> Otvori</button><button className="btn" onClick={()=>openDocument(d,"download")}><Download size={15}/> Preuzmi</button></div></div>})}{monthDocuments.length===0&&<div className="files-empty"><FileText/><b>Nema dokumenata za izabrani mesec.</b></div>}</div></div>}
 
     {tab==="vat"&&<div className="vat-archive-grid"><div className="card vat-summary-card"><span className="pill">ULAZNI PDV · FISKALNI RAČUNI</span><h2>{money(vat)}</h2><p className="muted">Evidentirani PDV sa fiskalnih računa za {monthLabel(selectedMonth)}.</p><div className="vat-summary-lines"><div><span>Bruto iznos računa</span><b>{money(gross)}</b></div><div><span>PDV</span><b>{money(vat)}</b></div><div><span>Iznos bez PDV (izvedeno)</span><b>{money(net)}</b></div></div></div><div className="card archive-card"><div className="section-title"><div><span className="pill"><Archive size={13}/> ARHIVA</span><h3>Mesečni periodi</h3></div></div><div className="archive-months">{monthOptions.map((m:string)=><a key={m} className={m===selectedMonth?"active":""} href={`/app/accountant/clients/${organization.id}?month=${m}`}>{monthLabel(m)} <span>→</span></a>)}</div></div></div>}
-  </main></div>;
+  </main></div></div>;
 }
 
 function ItemStatus({status}:any){if(status?.downloaded_at)return <span className="item-state done"><CheckCircle2 size={13}/> PREUZET</span>;if(status?.opened_at)return <span className="item-state opened"><Eye size={13}/> OTVOREN</span>;return <span className="item-state new">NOV / NEPREUZET</span>}

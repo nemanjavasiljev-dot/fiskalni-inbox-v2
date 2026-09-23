@@ -1,4 +1,4 @@
-# Fiskalni Inbox V4.3 — Registracija i povezivanje knjigovođe
+# FiscalBox V4.3 — Registracija i povezivanje knjigovođe
 
 ## Šta je novo
 
@@ -39,7 +39,7 @@ Ako APR nije konfigurisan, registracija i dalje omogućava ručni unos podataka.
 Za automatsko slanje poziva emailom dodajte u Vercel:
 
 - `RESEND_API_KEY`
-- `APP_EMAIL_FROM` — npr. `Fiskalni Inbox <noreply@vasdomen.rs>`
+- `APP_EMAIL_FROM` — npr. `FiscalBox <noreply@vasdomen.rs>`
 
 Bez ovih vrednosti PIB/email poziv se i dalje čuva u bazi i automatski će se povezati kada se knjigovođa registruje.
 

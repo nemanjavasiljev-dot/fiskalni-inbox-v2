@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+import { requireMaster } from "@/lib/master-auth";
+export async function POST(request:Request){const ctx=await requireMaster();if(!ctx.ok)return NextResponse.json({error:ctx.error},{status:ctx.status});const {id,status}=await request.json();if(!id||!["pending","paid","cancelled"].includes(status))return NextResponse.json({error:"Neispravan status."},{status:400});const {error}=await ctx.admin.from("accountant_payouts").update({status,paid_at:status==="paid"?new Date().toISOString():null}).eq("id",id);if(error)return NextResponse.json({error:error.message},{status:400});return NextResponse.json({ok:true});}

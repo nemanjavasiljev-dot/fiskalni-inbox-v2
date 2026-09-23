@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   if (error) return new Response(error.message,{status:400});
   const header = ["Datum","Dobavljač","PIB dobavljača","Broj računa","Iznos","PDV","Plaćanje","PIB kupca","Kategorija","Napomena","Status","QR URL"];
-  const rows = (data||[]).map(r=>[
+  const rows = (data||[]).map((r:any)=>[
     r.sdc_time||r.created_at,r.merchant_name,r.merchant_pib,r.invoice_number,r.total_amount,r.total_tax,r.payment_method,r.buyer_pib,r.category,r.note,r.verification_status,r.qr_url
   ].map(cell).join(";"));
   const csv = "\uFEFF"+header.map(cell).join(";")+"\n"+rows.join("\n");

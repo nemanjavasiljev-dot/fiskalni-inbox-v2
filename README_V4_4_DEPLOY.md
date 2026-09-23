@@ -1,4 +1,4 @@
-# Fiskalni Inbox V4.4 — KNJIGO CRM, tim i desktop app
+# FiscalBox V4.4 — KNJIGO CRM, tim i desktop app
 
 ## Šta je dodato
 

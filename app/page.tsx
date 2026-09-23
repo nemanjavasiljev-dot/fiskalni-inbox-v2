@@ -1,23 +1,24 @@
 import Link from "next/link";
 import InstallAppButton from "@/components/InstallAppButton";
+import BrandWordmark from "@/components/BrandWordmark";
 
 export default function Landing() {
   return (
     <>
       <header className="nav">
         <div className="container navin">
-          <Link className="brand" href="/">
-            <span className="logo">F</span><span>Fiskalni Inbox</span>
+          <Link className="brand landing-brand" href="/">
+            <span className="logo">F</span><BrandWordmark/>
           </Link>
           <nav className="navlinks">
             <a href="#kako">Kako radi</a>
             <a href="#funkcije">Funkcije</a>
             <a href="#cene">Pretplate</a>
           </nav>
-          <div className="actions">
-            <Link className="btn" href="/login">Prijava</Link>
-            <Link className="btn btn-primary" href="/register">Registruj se</Link>
-            <Link className="btn btn-accent" href="/login?demo=1">Pokreni demo</Link>
+          <div className="actions landing-actions">
+            <Link className="btn landing-login" href="/login">Prijava</Link>
+            <Link className="btn btn-primary landing-register" href="/register">Registruj se</Link>
+            <Link className="btn btn-brand-green landing-demo" href="/register?plan=basic&trial=1">Probaj 10 dana</Link>
           </div>
         </div>
       </header>
@@ -26,17 +27,15 @@ export default function Landing() {
         <section className="hero">
           <div className="container hero-grid">
             <div>
-              <span className="pill">DIGITALNI INBOX ZA FISKALNE RAČUNE</span>
-              <h1>Račun od kase do knjigovođe za nekoliko sekundi.</h1>
-              <p className="muted">
-                Zaposleni skenira QR kod sa fiskalnog računa. Fiskalni Inbox ga
-                proverava, evidentira i stavlja na raspolaganje firmi i knjigovođi —
-                bez fascikli, slanja fotografija i mesečnog traženja računa.
-              </p>
+              <span className="pill">APLIKACIJA ZA FISKALNE RAČUNE I DOKUMENTA</span>
+              <h1>Manje papira.<br/><span className="hero-accent">Više kontrole.</span></h1>
+              <p className="hero-brand-tagline">Skeniraj. Sačuvaj. Pošalji knjigovođi.</p>
+              <p className="muted hero-brand-copy">FiscalBox povezuje firmu i knjigovođu u jednom sigurnom digitalnom prostoru. Fiskalni računi, dokumenti, pretraga, arhiva i slanje knjigovođi — bez fascikli i mesečnog traženja papira.</p>
               <div className="hero-actions">
                 <Link className="btn btn-primary" href="/register">Registruj se</Link>
-                <Link className="btn btn-accent" href="/login?demo=1">Isprobaj demo</Link>
+                <Link className="btn btn-brand-green" href="/register?plan=basic&trial=1">Probaj 10 dana</Link>
                 <a className="btn" href="#cene">Pogledaj pretplate</a>
+                <InstallAppButton compact/>
               </div>
             </div>
 
@@ -78,12 +77,12 @@ export default function Landing() {
             <div className="section-head"><span className="pill">FUNKCIJE</span><h2>Napravljeno za firmu i knjigovođu.</h2></div>
             <div className="grid features">
               {[
-                ["⌗","QR skeniranje","Brz unos fiskalnog računa direktno sa telefona."],
-                ["✓","Provera računa","Server proverava da QR vodi na dozvoljeni domen Poreske uprave."],
-                ["⌕","Pretraga","Dobavljač, PIB, broj računa, kategorija i period."],
-                ["⇩","CSV izvoz","Podaci spremni za dalju obradu i knjigovodstvo."],
-                ["▧","Štampa / PDF","Print-friendly prikaz svakog računa i mesečnog pregleda."],
-                ["◎","Više klijenata","Knjigovođa iz jednog naloga pristupa svim dodeljenim firmama."]
+                ["⌗","Skeniraj","Fiskalne račune u sekundi, direktno sa telefona."],
+                ["⇧","Sačuvaj","Računi i dokumenti su bezbedno sačuvani na jednom mestu."],
+                ["➤","Pošalji knjigovođi","Ručno ili automatski prosledi račun i dokumente knjigovođi."],
+                ["✓","Pouzdano","Privatni podaci, kontrolisan pristup i pregled statusa."],
+                ["⌕","Pretraga i arhiva","Dobavljač, PIB, kategorija, period i mesečna arhiva."],
+                ["◎","Firma + knjigovođa","Jedna aplikacija za svakodnevni rad obe strane."]
               ].map(([i,t,d]) => (
                 <div className="card feature" key={t}><div className="icon">{i}</div><h3>{t}</h3><p>{d}</p></div>
               ))}
@@ -100,22 +99,17 @@ export default function Landing() {
 
         <section id="cene" className="section">
           <div className="container">
-            <div className="section-head" style={{textAlign:"center",margin:"0 auto 32px"}}><span className="pill">PRETPLATE</span><h2>Jednostavna cena po korisniku.</h2><p className="muted">Mesečna pretplata. Cena se množi brojem aktivnih korisnika naloga.</p></div>
-            <div className="grid pricing pricing-three">
+            <div className="section-head" style={{textAlign:"center",margin:"0 auto 32px"}}><span className="pill">PRETPLATE</span><h2>Jednostavna cena po korisniku.</h2><p className="muted">Basic i Premium imaju probni period od 10 dana. Posle trial-a aktivira se realna mesečna pretplata po broju aktivnih korisnika naloga.</p></div>
+            <div className="grid pricing">
               <div className="card price">
-                <span className="tag">10 DANA</span><h3>Probni</h3><div className="price-number">0 RSD</div><div className="muted">10 dana besplatno</div>
-                <ul><li>Bez obaveze</li><li>QR i fajlovi</li><li>Povezivanje knjigovođe</li><li>Test svih osnovnih funkcija</li></ul>
-                <Link href="/register" className="btn btn-primary" style={{width:"100%"}}>Počni besplatno</Link>
-              </div>
-              <div className="card price">
-                <h3>Basic</h3><div className="price-number">1.250 RSD</div><div className="muted">po korisniku / mesečno</div>
-                <ul><li>QR unos računa</li><li>Baza i pretraga</li><li>Kategorije i napomene</li><li>CSV izvoz</li><li>Pristup knjigovođi</li></ul>
-                <Link href="/register" className="btn btn-primary" style={{width:"100%"}}>Izaberi Basic</Link>
+                <span className="tag">10 DANA BESPLATNO</span><h3>Basic</h3><div className="price-number">1.250 RSD + PDV</div><div className="muted">po korisniku / mesečno nakon trial-a</div>
+                <ul><li>QR unos računa</li><li>Fajlovi i arhiva</li><li>Kategorije i pretraga</li><li>CSV / PDF / štampa</li><li>Povezivanje knjigovođe</li></ul>
+                <div className="pricing-actions"><Link href="/register?plan=basic&trial=1" className="btn btn-primary">Probaj 10 dana</Link><Link href="/register?plan=basic&trial=0" className="btn">Pretplati se</Link></div>
               </div>
               <div className="card price pop">
-                <span className="tag">PREPORUČENO</span><h3>Premium</h3><div className="price-number">2.000 RSD</div><div className="muted">po korisniku / mesečno</div>
-                <ul><li>Sve iz Basic paketa</li><li>Napredni mesečni pregledi</li><li>Print/PDF paketi</li><li>Više firmi za knjigovođe</li><li>Prioritetna podrška</li></ul>
-                <Link href="/register" className="btn btn-accent" style={{width:"100%"}}>Izaberi Premium</Link>
+                <span className="tag">PREPORUČENO · 10 DANA BESPLATNO</span><h3>Premium</h3><div className="price-number">1.790 RSD + PDV</div><div className="muted">po korisniku / mesečno nakon trial-a</div>
+                <ul><li>Sve iz Basic paketa</li><li>Napredni mesečni pregledi</li><li>Print/PDF paketi</li><li>Napredne KNJIGO funkcije</li><li>Prioritetne funkcije i podrška</li></ul>
+                <div className="pricing-actions"><Link href="/register?plan=premium&trial=1" className="btn btn-brand-green">Probaj 10 dana</Link><Link href="/register?plan=premium&trial=0" className="btn">Pretplati se</Link></div>
               </div>
             </div>
           </div>
@@ -124,7 +118,7 @@ export default function Landing() {
         <section className="section">
           <div className="container">
             <div className="card" style={{padding:32,display:"flex",alignItems:"center",justifyContent:"space-between",gap:24,flexWrap:"wrap"}}>
-              <div><span className="pill">DESKTOP APP</span><h2 style={{margin:"10px 0 6px"}}>Fiskalni Inbox kao aplikacija na računaru.</h2><p className="muted" style={{margin:0}}>Instalacija je dostupna kroz Chrome, Edge i Firefox Web Apps na podržanom Windows-u.</p></div>
+              <div><span className="pill">DESKTOP APP</span><h2 style={{margin:"10px 0 6px"}}>FiscalBox kao aplikacija na računaru.</h2><p className="muted" style={{margin:0}}>Instalacija je dostupna kroz Chrome, Edge i Firefox Web Apps na podržanom Windows-u.</p></div>
               <InstallAppButton/>
             </div>
           </div>
@@ -132,13 +126,13 @@ export default function Landing() {
 
         <div className="container">
           <div className="cta">
-            <div><h2>Probaj Fiskalni Inbox.</h2><p style={{color:"#cde1d8"}}>Demo nalozi su odvojeni od produkcionih podataka.</p></div>
-            <div className="actions"><Link className="btn btn-primary" href="/register">Registruj se</Link><Link className="btn btn-accent" href="/login?demo=1">Pokreni demo</Link><Link className="btn" href="/login">Prijava</Link></div>
+            <div><h2>Probaj FiscalBox 10 dana.</h2><p style={{color:"#cde1d8"}}>Pravi nalog, pravi podaci i aktivne funkcije. Bez demo režima.</p></div>
+            <div className="actions"><Link className="btn btn-primary" href="/register?plan=basic&trial=1">Probaj 10 dana</Link><Link className="btn btn-brand-green" href="/register">Registruj se</Link><Link className="btn" href="/login">Prijava</Link></div>
           </div>
         </div>
       </main>
 
-      <footer className="footer"><div className="container">© 2026 Fiskalni Inbox · Digitalna evidencija fiskalnih računa</div></footer>
+      <footer className="footer"><div className="container">© 2026 FiscalBox · Skeniraj. Sačuvaj. Pošalji knjigovođi.</div></footer>
     </>
   );
 }

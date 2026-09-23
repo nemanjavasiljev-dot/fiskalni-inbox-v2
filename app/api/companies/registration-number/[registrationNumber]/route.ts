@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server';
+import { APRSyncService } from '@/lib/apr-sync-service';
+import { getCompanyByRegistrationNumber } from '@/lib/company-registry';
+export async function GET(_:Request,{params}:{params:Promise<{registrationNumber:string}>}){const {registrationNumber}=await params;const mb=registrationNumber.replace(/\D/g,'');if(mb.length!==8)return NextResponse.json({error:'Matični broj mora imati 8 cifara.'},{status:400});try{let company=await getCompanyByRegistrationNumber(mb);if((!company||!company.apr_last_sync)&&APRSyncService.isConfigured())company=await APRSyncService.syncExact(mb);if(!company)return NextResponse.json({error:'Firma nije pronađena.'},{status:404});return NextResponse.json({company});}catch{return NextResponse.json({error:'Pretraga firmi trenutno nije dostupna. Pokušajte ponovo.'},{status:502});}}
