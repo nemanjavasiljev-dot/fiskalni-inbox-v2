@@ -84,8 +84,8 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
 
     {step===2&&<section className="register-step">
       <h2>Pronađite firmu</h2>
-      <p className="muted">Unesite samo PIB ili naziv firme. Ostale podatke preuzimamo iz APR podataka.</p>
-      <CompanySearch value={company} onSelect={setCompany} label={role==="accountant"?"Knjigovodstvena firma":"Firma"} required placeholder="PIB ili naziv firme" showDetails allowRefresh={false}/>
+      <p className="muted">Unesite naziv firme ili matični broj. Podatke preuzimamo iz lokalno sinhronizovane APR baze.</p>
+      <CompanySearch value={company} onSelect={setCompany} label={role==="accountant"?"Knjigovodstvena firma":"Firma"} required placeholder="Naziv firme ili matični broj" showDetails allowRefresh={false}/>
       {company&&<div className="company-confirm"><Check size={17}/><div><b>Ovo je moja firma</b><span>Korisničko ime će biti generisano automatski iz naziva firme.</span>{usernamePreview&&<small>Primer: <strong>{usernamePreview}</strong></small>}</div></div>}
       {error&&<div className="error">{error}</div>}
       <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" disabled={!company} onClick={next}>Ovo je moja firma</button></div>
@@ -119,7 +119,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
     {step===5&&role==="company"&&<section className="register-step">
       <h2>Povežite knjigovođu <span className="optional-label">opciono</span></h2>
       <p className="muted">Pronađite knjigovodstvenu firmu. Ako nema FiscalBox nalog, možete ostaviti email za poziv.</p>
-      <CompanySearch value={accountantCompany} onSelect={checkAccountant} label="Knjigovodstvena firma" placeholder="PIB ili naziv knjigovođe" showDetails={false}/>
+      <CompanySearch value={accountantCompany} onSelect={checkAccountant} label="Knjigovodstvena firma" placeholder="Naziv knjigovodstvene firme ili matični broj" showDetails={false}/>
       {checkingAccountant&&<div className="lookup-message">Proveravam FiscalBox registraciju…</div>}
       {accountantState&&<div className={`accountant-result ${accountantState.found?"found":"not-found"}`}>{accountantState.found?<Check size={18}/>:<UserRound size={18}/>}<span>{accountantState.message}</span></div>}
       {accountantCompany&&accountantState&&!accountantState.found&&<div className="field"><label>Email knjigovođe</label><input className="input" type="email" value={accountantEmail} onChange={e=>setAccountantEmail(e.target.value)} placeholder="knjigovodja@firma.rs"/></div>}

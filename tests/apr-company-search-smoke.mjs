@@ -4,8 +4,7 @@ const base=(process.env.TEST_APP_URL||'http://localhost:3000').replace(/\/$/,'')
 const fixtures={
   name:process.env.TEST_APR_NAME||'',
   exactName:process.env.TEST_APR_EXACT_NAME||process.env.TEST_APR_NAME||'',
-  mb:process.env.TEST_APR_MB||'',
-  pib:process.env.TEST_APR_PIB||''
+  mb:process.env.TEST_APR_MB||''
 };
 
 async function search(q){
@@ -33,11 +32,10 @@ async function run(){
     const first=result.body.results[0];
     assert.ok(first.id&&first.name,`${kind}: central company_id/name`);
     if(kind==='mb') assert.equal(String(first.registration_number||''),String(value).replace(/\D/g,''),'Exact MB mora biti prvi.');
-    if(kind==='pib') assert.equal(String(first.pib||''),String(value).replace(/\D/g,''),'Exact PIB mora biti prvi.');
     console.log(`OK ${kind}: ${first.name}`);
   }
 
-  console.log('OK: osnovni APRCompanySearch API smoke testovi su prošli.');
+  console.log('OK: APR pretraga po nazivu i matičnom broju radi.');
 }
 
 run().catch(err=>{console.error(err);process.exit(1)});
