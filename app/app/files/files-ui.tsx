@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, File, FileText, FolderOpen, Pencil, Search, Send, Upload, X } from "lucide-react";
+import { Camera, Check, File as FileIcon, FileText, FolderOpen, Pencil, Search, Send, Upload, X } from "lucide-react";
 import QrScanner from "@/components/QrScanner";
 import UserBottomNav from "@/components/UserBottomNav";
 import DocumentScanner from "@/components/DocumentScanner";
@@ -123,7 +123,7 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
   }
 
   function toggle(id: string) { setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]); }
-  function iconFor(d: any) { return String(d.mime_type || "").startsWith("image/") ? <File size={20}/> : <FileText size={20}/>; }
+  function iconFor(d: any) { return String(d.mime_type || "").startsWith("image/") ? <FileIcon size={20}/> : <FileText size={20}/>; }
 
   return <div className={`app-shell ${!isAccountant ? "with-bottom-nav" : ""}`}>
     <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark/></a><div className="actions"><span className="muted" style={{alignSelf:"center",fontSize:12}}>{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>
