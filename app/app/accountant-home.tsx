@@ -1,10 +1,8 @@
 "use client";
 import React from "react";
-import { Archive, Bell, CalendarDays, FileCheck2, FileText, Plus, ReceiptText, Search, Settings, Users, X } from "lucide-react";
+import { Archive, Bell, CalendarDays, FileCheck2, FileText, Plus, ReceiptText, Search, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import BrandWordmark from "@/components/BrandWordmark";
 import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
-import PushNotificationOptIn from "@/components/PushNotificationOptIn";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short",timeStyle:"short"}).format(new Date(v)):"—";
@@ -37,12 +35,16 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const documentStatus: Map<string,any>=new Map((overview.documentStatuses||[]).map((s:any)=>[String(s.document_id),s]));
   const periodReceipts=(overview.receipts||[]).filter((r:any)=>period==="total"||inMonth(r.sent_to_accountant_at||r.created_at,start));
   const periodDocuments=(overview.documents||[]).filter((d:any)=>period==="total"||inMonth(d.sent_at||d.created_at,start));
-  const newReceipts=periodReceipts.filter((r:any)=>!receiptStatus.get(String(r.id))?.opened_at).length;
-  const newDocuments=periodDocuments.filter((d:any)=>!documentStatus.get(String(d.id))?.opened_at).length;
-  const assignedReceipts=(overview.receiptStatuses||[]).filter((s:any)=>s.opened_at&&(period==="total"||inMonth(s.opened_at,start))).length;
-  const assignedDocuments=(overview.documentStatuses||[]).filter((s:any)=>s.opened_at&&(period==="total"||inMonth(s.opened_at,start))).length;
   const allUnreadDocs=(overview.documents||[]).filter((d:any)=>!documentStatus.get(String(d.id))?.opened_at);
   const allUnreadReceipts=(overview.receipts||[]).filter((r:any)=>!receiptStatus.get(String(r.id))?.opened_at);
+  // "Novi" u prijemu uvek znači sve što je stiglo od poslednje sinhronizacije, bez obzira na izabrani period pregleda.
+  const newReceipts=allUnreadReceipts.length;
+  const newDocuments=allUnreadDocs.length;
+  const assignedReceipts=(overview.receiptStatuses||[]).filter((s:any)=>s.opened_at&&(period==="total"||inMonth(s.opened_at,start))).length;
+  const assignedDocuments=(overview.documentStatuses||[]).filter((s:any)=>s.opened_at&&(period==="total"||inMonth(s.opened_at,start))).length;
+  const latestOpened=(rows:any[])=>rows.map((x:any)=>x?.opened_at).filter(Boolean).sort((a:any,b:any)=>new Date(b).getTime()-new Date(a).getTime())[0]||null;
+  const lastReceiptSync=latestOpened(overview.receiptStatuses||[]);
+  const lastDocumentSync=latestOpened(overview.documentStatuses||[]);
   const connectionRequests=context?.incomingConnectionRequests||[];
   const notificationCount=(settings.notify_new_documents?allUnreadDocs.length:0)+(settings.notify_new_receipts?allUnreadReceipts.length:0)+connectionRequests.length;
   const orgMap=new Map(organizations.map((o:any)=>[String(o.organization_id),o]));
@@ -80,7 +82,8 @@ export default function AccountantHome({profile,organizations,overview,context}:
       const r=await fetch("/api/accountant/intake/assign-all",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({type,month:period==="month"?currentMonthKey():null})
+        // Sinhronizacija uvek obrađuje SVE novo od prethodne sinhronizacije; period služi samo za pregled dashboarda.
+        body:JSON.stringify({type,month:null})
       });
       const d=await r.json();
       if(!r.ok){setIntakeMessage(d.error||"Prijem nije mogao da se obradi.");return;}
@@ -166,17 +169,30 @@ export default function AccountantHome({profile,organizations,overview,context}:
   },[router]);
 
   return <div className="app-shell accountant-shell">
-    <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a><div className="actions"><PushNotificationOptIn/><button className="btn notification-button" onClick={()=>setNotificationsOpen(v=>!v)}><Bell size={17}/>{liveNotificationCount>0&&<span>{liveNotificationCount}</span>}</button><a className="btn" href="/app/accountant/settings"><Settings size={16}/> Podešavanja</a><span className="muted accountant-username">{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>
-    <div className="accountant-desktop-layout"><AccountantDesktopMenu isAdmin={Boolean(context?.isAdmin)}/><main className="app-main accountant-main">
+    <div className="accountant-desktop-layout"><AccountantDesktopMenu isAdmin={Boolean(context?.isAdmin)} username={profile.username||profile.full_name||profile.auth_email||""} notificationCount={liveNotificationCount} onNotificationsClick={()=>setNotificationsOpen(v=>!v)}/><main className="app-main accountant-main">
       <div className="app-head accountant-head-main"><div><span className="pill">{context?.isAdmin?"ADMIN KNJIGOVOĐA":"KNJIGOVOĐA"}</span><h1>Radni pregled</h1><p className="muted">{context?.office?.name&&<><b>{context.office.name}</b> · </>}podrazumevano je prikazan tekući mesec: <b>{currentMonthLabel()}</b>.</p></div><div className="period-switch"><button className={period==="month"?"active":""} onClick={()=>setPeriod("month")}>Tekući mesec</button><button className={period==="total"?"active":""} onClick={()=>setPeriod("total")}>Ukupno</button></div></div>
 
       {notificationsOpen&&<div className="card notification-panel"><div className="notification-panel-head"><div><Bell size={18}/><b>Notifikacije</b></div><button onClick={()=>setNotificationsOpen(false)}>×</button></div>{liveConnectionRequests.map((r:any)=><div key={`conn-${r.id}`} className="notification-row"><Users size={17}/><div><b>Novi zahtev za povezivanje</b><span>{r.sender_organization?.name||"Firma"}</span></div></div>)}{liveNotificationItems.map((n:any)=>{const org:any=orgMap.get(String(n.org));return <a key={`${n.kind}-${n.id}`} className="notification-row" href={`/app/accountant/clients/${n.org}`}><FileText size={17}/><div><b>{n.kind}: {n.title}</b><span>{org?.name||"Klijent"} · {dt(n.date)}</span></div></a>})}{!liveConnectionRequests.length&&!liveNotificationItems.length&&<div className="notification-empty">Nema novih stavki prema vašim podešavanjima.</div>}</div>}
 
       {liveConnectionRequests.length>0&&<div className="card company-requests-card connection-request-card"><div className="section-title"><div><span className="pill">NOVI ZAHTEVI</span><h3>Klijenti koji žele povezivanje</h3></div></div><div className="company-request-list">{liveConnectionRequests.map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.sender_organization?.name||"Firma"}</b><span>Poslala je zahtev putem {r.channel==="sms"?"SMS-a":"emaila"}. Prihvatite da se firma doda u vaše klijente.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewConnection(r.id,"approve")}>Prihvati</button><button className="btn" onClick={()=>reviewConnection(r.id,"reject")}>Odbij</button></div></div>)}</div></div>}
 
-      <div className="grid accountant-summary-grid"><SummaryCard icon={<FileText/>} label="Novi dokumenti" value={newDocuments} note="čeka raspoređivanje"/><SummaryCard icon={<ReceiptText/>} label="Novi računi" value={newReceipts} note="čeka raspoređivanje"/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni računi" value={assignedReceipts} note={period==="month"?"ovog meseca":"ukupno"}/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni dokumenti" value={assignedDocuments} note={period==="month"?"ovog meseca":"ukupno"}/></div>
+      <div className="grid accountant-summary-grid"><SummaryCard icon={<FileText/>} label="Novi dokumenti" value={newDocuments} note="od poslednje sinhronizacije"/><SummaryCard icon={<ReceiptText/>} label="Novi računi" value={newReceipts} note="od poslednje sinhronizacije"/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni računi" value={assignedReceipts} note={period==="month"?"ovog meseca":"ukupno"}/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni dokumenti" value={assignedDocuments} note={period==="month"?"ovog meseca":"ukupno"}/></div>
 
-      <section className="accountant-section"><div className="section-title"><div><span className="pill">PRIJEM</span><h2>Računi i dokumenti klijenata</h2><p className="muted">Veliki broj prikazuje samo nove pristigle stavke koje još nisu raspoređene. Klik na „Preuzmi sve“ ažurira bazu i raspoređuje ih odgovarajućim klijentima. Preuzimanje fajla i štampa rade se tek unutar konkretnog klijenta.</p></div></div>{intakeMessage&&<div className="demo-box" style={{marginBottom:12}}>{intakeMessage}</div>}<div className="grid accountant-summary-grid"><div className="card accountant-summary-card"><div className="accountant-summary-icon"><ReceiptText/></div><div style={{flex:1}}><span>Fiskalni računi svih klijenata</span><strong>{newReceipts}</strong><small>{periodReceipts.length} ukupno u prikazanom periodu</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("receipts")} disabled={intakeBusy!==null||newReceipts===0}><FileCheck2 size={15}/> {intakeBusy==="receipts"?"Ažuriram bazu…":"Preuzmi sve račune"}</button></div></div><div className="card accountant-summary-card"><div className="accountant-summary-icon"><FileText/></div><div style={{flex:1}}><span>Dokumenti svih klijenata</span><strong>{newDocuments}</strong><small>{periodDocuments.length} ukupno u prikazanom periodu</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("documents")} disabled={intakeBusy!==null||newDocuments===0}><FileCheck2 size={15}/> {intakeBusy==="documents"?"Ažuriram bazu…":"Preuzmi sve dokumente"}</button></div></div></div></section>
+      <section className="accountant-sync-section" aria-label="Sinhronizacija prijema">
+        {intakeMessage&&<div className="demo-box accountant-sync-message">{intakeMessage}</div>}
+        <div className="accountant-sync-grid">
+          <div className="card accountant-sync-card">
+            <div className="accountant-sync-card-head"><div className="accountant-sync-big-icon"><ReceiptText/></div><div><span>PRIJEM RAČUNA</span><h3>Preuzmi fiskalne</h3><p>{newReceipts} novih fiskalnih računa od poslednje sinhronizacije.</p></div></div>
+            <div className="accountant-sync-meta"><span>Poslednja sinhronizacija</span><b>{lastReceiptSync?dt(lastReceiptSync):"Nije još izvršena"}</b></div>
+            <button className="btn btn-primary accountant-sync-button" onClick={()=>assignAll("receipts")} disabled={intakeBusy!==null||newReceipts===0}><FileCheck2 size={18}/> {intakeBusy==="receipts"?"Sinhronizujem…":"Preuzmi fiskalne"}</button>
+          </div>
+          <div className="card accountant-sync-card">
+            <div className="accountant-sync-card-head"><div className="accountant-sync-big-icon"><FileText/></div><div><span>PRIJEM DOKUMENATA</span><h3>Preuzmi dokumenta</h3><p>{newDocuments} novih dokumenata od poslednje sinhronizacije.</p></div></div>
+            <div className="accountant-sync-meta"><span>Poslednja sinhronizacija</span><b>{lastDocumentSync?dt(lastDocumentSync):"Nije još izvršena"}</b></div>
+            <button className="btn btn-primary accountant-sync-button" onClick={()=>assignAll("documents")} disabled={intakeBusy!==null||newDocuments===0}><FileCheck2 size={18}/> {intakeBusy==="documents"?"Sinhronizujem…":"Preuzmi dokumenta"}</button>
+          </div>
+        </div>
+      </section>
 
       {settings.notify_deadlines&&<div className="grid deadline-grid"><div className="card deadline-card"><CalendarDays/><div><span>Obračun prethodnog meseca</span><b>do 10. u mesecu</b><small>{previousMonthLabel()} → {dueDate(10)}</small></div></div><div className="card deadline-card"><FileText/><div><span>Fakture</span><b>do 10. u mesecu</b><small>rok {dueDate(10)}</small></div></div><div className="card deadline-card"><ReceiptText/><div><span>PDV prijava</span><b>15. u mesecu</b><small>rok {dueDate(15)}</small></div></div></div>}
 

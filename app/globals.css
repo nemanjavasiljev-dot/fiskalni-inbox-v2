@@ -386,3 +386,56 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
   .master46-brand .logo{width:42px;height:42px;flex-basis:42px;background-size:37px 37px}
   .master46-brand .brand-wordmark{font-size:18px!important}
 }
+
+/* FiscalBox V5.9.2.3 — prijem od poslednje sinhronizacije */
+.accountant-sync-section{margin-top:16px}.accountant-sync-message{margin-bottom:12px}.accountant-sync-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.accountant-sync-card{min-height:176px;padding:22px;display:flex;flex-direction:column;justify-content:space-between;gap:16px}.accountant-sync-card-head{display:flex;align-items:flex-start;gap:15px}.accountant-sync-card-head>div:last-child{min-width:0}.accountant-sync-big-icon{width:54px;height:54px;flex:0 0 54px;border-radius:16px;background:#eaf4ef;color:var(--green);display:grid;place-items:center}.accountant-sync-big-icon svg{width:26px;height:26px}.accountant-sync-card span{display:block;font-size:10px;letter-spacing:.04em;color:var(--muted);font-weight:800}.accountant-sync-card h3{margin:4px 0 5px;font-size:22px;line-height:1.1}.accountant-sync-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.accountant-sync-meta{padding-top:12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}.accountant-sync-meta b{font-size:11px;text-align:right}.accountant-sync-button{width:100%;min-height:48px;justify-content:center;font-size:14px}.accountant-sync-button:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:760px){.accountant-sync-grid{grid-template-columns:1fr}.accountant-sync-card{min-height:0;padding:18px}.accountant-sync-card h3{font-size:20px}.accountant-sync-meta{align-items:flex-start;flex-direction:column}.accountant-sync-meta b{text-align:left}}
+
+/* FiscalBox V5.9.2.4 — KNJIGO navigacija usklađena sa SUPER ADMIN konzolom */
+.accountant-shell{min-height:100vh;background:#f3f6f3}
+.accountant-shell>.appbar{display:none!important}
+.accountant-desktop-layout{width:100%;margin:0;display:block;min-height:100vh}
+.accountant-main{width:auto!important;max-width:none!important;margin:0 0 0 250px!important;padding:30px 34px 72px!important;min-width:0}
+.accountant-desktop-menu.accountant-super-menu{position:fixed;inset:0 auto 0 0;top:0;width:250px;height:100vh;margin:0;background:#0d382b;color:#fff;border:0;border-radius:0;padding:24px 16px;box-shadow:none;display:flex;flex-direction:column;gap:20px;z-index:120;overflow-y:auto}
+.accountant-menu-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.accountant-menu-brand{display:flex;align-items:center;gap:11px;color:#fff;text-decoration:none;font-weight:900;min-width:0}
+.accountant-menu-brand .logo{width:48px;height:48px;border-radius:13px;background-color:#fff;background-image:url('/brand/fiscalbox-mark.svg');background-position:center;background-size:42px 42px;background-repeat:no-repeat;color:transparent;font-size:0;box-shadow:0 5px 18px rgba(0,0,0,.18);flex:0 0 48px}
+.accountant-menu-brand .brand-wordmark{display:inline-flex!important;opacity:1!important;visibility:visible!important;font-size:21px!important;line-height:1!important;white-space:nowrap}
+.accountant-menu-brand .brand-fiscal{color:#fff!important}.accountant-menu-brand .brand-box{color:#cef667!important}
+.accountant-menu-user{padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.05)}
+.accountant-menu-user span{display:block;color:#9bc0b1;font-size:9px;font-weight:900;letter-spacing:.08em}.accountant-menu-user b{display:block;margin-top:4px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.accountant-desktop-menu.accountant-super-menu nav{display:grid;gap:6px}
+.accountant-desktop-menu.accountant-super-menu nav a{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:11px;color:#b9d0c7;font-size:13px;font-weight:800;text-decoration:none;background:transparent}
+.accountant-desktop-menu.accountant-super-menu nav a:hover,.accountant-desktop-menu.accountant-super-menu nav a.active{background:#155642;color:#fff}
+.accountant-desktop-menu.accountant-super-menu nav a em{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#cef667;color:#0d382b;font-style:normal;font-size:10px;font-weight:950;display:grid;place-items:center}
+.accountant-menu-push{margin-top:auto}.accountant-menu-push .push-optin,.accountant-menu-push button{width:100%}.accountant-menu-push .btn{justify-content:flex-start;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:#fff}
+.accountant-menu-logout{width:100%;margin-top:0;border:0;border-top:1px solid rgba(255,255,255,.12);border-radius:0;background:transparent;padding:16px 12px 4px;text-align:left;color:#ffc9c6;font-weight:850;cursor:pointer}
+.accountant-menu-mobile-toggle,.accountant-mobile-topbar,.accountant-mobile-backdrop{display:none}
+.accountant-main .table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+@media(max-width:900px){
+  .accountant-shell{min-height:100vh;background:#f3f6f3}
+  .accountant-desktop-layout{display:block;width:100%;min-height:100vh}
+  .accountant-desktop-menu.accountant-super-menu{position:fixed;inset:0 auto 0 0;width:min(86vw,330px);height:100dvh;padding:18px 14px;transform:translateX(-105%);transition:transform .22s ease;z-index:140;box-shadow:0 24px 64px rgba(5,30,23,.28)}
+  .accountant-desktop-menu.accountant-super-menu.mobile-open{transform:translateX(0)}
+  .accountant-menu-mobile-toggle{display:grid;place-items:center;width:42px;height:42px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
+  .accountant-mobile-backdrop{display:block;position:fixed;inset:0;border:0;background:rgba(3,24,18,.48);backdrop-filter:blur(2px);z-index:130}
+  .accountant-mobile-topbar{position:sticky;top:0;z-index:100;min-height:64px;padding:10px 12px;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);backdrop-filter:blur(12px);display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px}
+  .accountant-mobile-menu-inline{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 11px;color:#0d382b;font-weight:850;cursor:pointer}.accountant-mobile-menu-inline span{display:none}
+  .accountant-mobile-brand{min-width:0;display:flex;align-items:center;justify-content:center;gap:7px;text-decoration:none}.accountant-mobile-logo{width:34px;height:34px;border-radius:9px;background:#fff url('/brand/fiscalbox-mark.svg') center/30px 30px no-repeat;color:transparent;font-size:0;flex:0 0 34px}.accountant-mobile-brand .brand-wordmark{font-size:15px!important;white-space:nowrap}.accountant-mobile-brand .brand-fiscal{color:#0d382b!important}.accountant-mobile-brand .brand-box{color:#17845e!important}.accountant-mobile-brand .brand-suffix{font-size:9px!important;color:#527066!important}
+  .accountant-mobile-bell{position:relative;width:42px;height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;color:#0d382b;display:grid;place-items:center;text-decoration:none;cursor:pointer}.accountant-mobile-bell span{position:absolute;right:-4px;top:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#b42318;color:#fff;font-size:9px;font-weight:900;display:grid;place-items:center}
+  .accountant-main{margin:0!important;padding:18px 12px 72px!important;width:100%!important;max-width:none!important}
+  .accountant-main .app-head{align-items:flex-start;gap:12px}
+  .accountant-main .app-head h1{font-size:28px;line-height:1.05}
+  .accountant-main .table-wrap{border-radius:12px}
+  .accountant-menu-push{margin-top:12px}
+}
+
+@media(max-width:620px){
+  .accountant-main{padding-left:10px!important;padding-right:10px!important}
+  .accountant-main .app-head{display:block}.accountant-main .app-head .period-switch{margin-top:12px;width:100%}.accountant-main .app-head .period-switch button{flex:1}
+  .accountant-menu-brand .logo{width:44px;height:44px;flex-basis:44px;background-size:39px 39px}.accountant-menu-brand .brand-wordmark{font-size:19px!important}
+  .accountant-mobile-brand .brand-wordmark{font-size:14px!important}.accountant-mobile-brand .brand-suffix{display:none}
+  .accountant-main button,.accountant-main .btn,.accountant-desktop-menu button{min-height:42px}
+  .accountant-main input,.accountant-main select,.accountant-main textarea{font-size:16px}
+}
