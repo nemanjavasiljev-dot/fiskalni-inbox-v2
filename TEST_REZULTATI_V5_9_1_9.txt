@@ -1,0 +1,4 @@
+FiscalBox V5.9.1.9
+Syntax check: PASS (161 TS/TSX files, 0 syntax errors)
+Regression: not executed locally because web-push dependency is not installed in this container.
+No new SQL migration.

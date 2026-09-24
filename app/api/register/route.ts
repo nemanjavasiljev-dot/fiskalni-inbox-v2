@@ -2,6 +2,7 @@ import { checkSearchRateLimit } from '@/lib/company-registry';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendRegistrationVerificationEmail } from '@/lib/mailer';
+import { createConnectionRequest, validEmail as validInviteEmail, normalizePhone, validPhone } from '@/lib/connection-requests';
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -36,11 +37,17 @@ export async function POST(request:Request){
   const trial=body.trial!==false;
   const companyContactEmail=String(body.company_contact_email||'').trim().toLowerCase();
   const companyContactPhone=String(body.company_contact_phone||'').trim().slice(0,80);
+  const accountantInviteChannel=body.accountant_invite_channel==='sms'?'sms':'email';
+  const accountantInviteContact=String(body.accountant_invite_contact||'').trim();
 
   if(!EMAIL.test(email))return NextResponse.json({error:'Unesite ispravnu email adresu.'},{status:400});
   if(password.length<8||password.length>256)return NextResponse.json({error:'Lozinka mora imati najmanje 8 znakova.'},{status:400});
   if(!companyId)return NextResponse.json({error:'Pronađite i izaberite firmu.'},{status:400});
   if(companyContactEmail&&!EMAIL.test(companyContactEmail))return NextResponse.json({error:'Kontakt email firme nije ispravan.'},{status:400});
+  if(role==='company'&&accountantInviteContact){
+    if(accountantInviteChannel==='email'&&!validInviteEmail(accountantInviteContact.toLowerCase()))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});
+    if(accountantInviteChannel==='sms'&&!validPhone(normalizePhone(accountantInviteContact)))return NextResponse.json({error:'Telefon knjigovođe nije ispravan.'},{status:400});
+  }
 
   const admin=createAdminClient();
   const {data:company}=await admin.from('companies').select('*').eq('id',companyId).maybeSingle();
@@ -69,7 +76,7 @@ export async function POST(request:Request){
     if(!createdUser?.id||!actionLink)throw new Error('Verifikacioni link nije mogao da se generiše.');
     newUserId=String(createdUser.id);
 
-    const {error:profileError}=await admin.from('profiles').update({username,full_name:null,global_role:role==='accountant'?'accountant':'user',primary_company_id:company.id}).eq('user_id',newUserId);
+    const {error:profileError}=await admin.from('profiles').update({username,auth_email:email,full_name:null,global_role:role==='accountant'?'accountant':'user',primary_company_id:company.id}).eq('user_id',newUserId);
     if(profileError)throw profileError;
 
     const {data:existingOrg}=await admin.from('organizations').select('id,name,owner_user_id,organization_type').eq('company_id',company.id).limit(1).maybeSingle();
@@ -81,8 +88,8 @@ export async function POST(request:Request){
         accessRequestId=createdAccess?.id;
       }
       const emailResult=await sendRegistrationVerificationEmail({to:email,username,verifyUrl:actionLink});
-      if(!emailResult.sent)throw new Error(!emailResult.configured?'Email servis za verifikaciju nije podešen. Proverite RESEND_API_KEY i APP_EMAIL_FROM.':`Verifikacioni email nije poslat${emailResult.status?` (HTTP ${emailResult.status})`:''}.`);
-      return NextResponse.json({ok:true,created:true,username,access_request_pending:true,requires_email_confirmation:true,verification_email_sent:true,redirect:'/login?registered=1'});
+      if(!emailResult.sent)console.error('[FiscalBox registration] verification email failed',{email,status:emailResult.status,error:emailResult.error});
+      return NextResponse.json({ok:true,created:true,username,access_request_pending:true,requires_email_confirmation:true,verification_email_sent:emailResult.sent,verification_email_error:emailResult.sent?null:(emailResult.error||(!emailResult.configured?'RESEND_API_KEY nije podešen.':'Email nije poslat.')),redirect:'/login?registered=1'});
     }
 
     const now=new Date();const trialEnd=new Date(now.getTime()+10*24*60*60*1000).toISOString();
@@ -97,9 +104,20 @@ export async function POST(request:Request){
     if(subError)throw subError;
 
     const emailResult=await sendRegistrationVerificationEmail({to:email,username,verifyUrl:actionLink});
-    if(!emailResult.sent)throw new Error(!emailResult.configured?'Email servis za verifikaciju nije podešen. Proverite RESEND_API_KEY i APP_EMAIL_FROM.':`Verifikacioni email nije poslat${emailResult.status?` (HTTP ${emailResult.status})`:''}.`);
+    if(!emailResult.sent)console.error('[FiscalBox registration] verification email failed',{email,status:emailResult.status,error:emailResult.error});
 
-    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,requires_email_confirmation:true,verification_email_sent:true,redirect:'/login?registered=1'});
+    let accountantInviteSent=false;
+    let accountantInviteError:string|null=null;
+    if(role==='company'&&accountantInviteContact){
+      try{
+        await createConnectionRequest({admin,requestUrl:request.url,senderOrganizationId:String(org.id),senderUserId:newUserId,channel:accountantInviteChannel,contact:accountantInviteContact});
+        accountantInviteSent=true;
+      }catch(inviteError:any){
+        accountantInviteError=inviteError?.message||'Poziv knjigovođi nije poslat.';
+      }
+    }
+
+    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,requires_email_confirmation:true,verification_email_sent:emailResult.sent,verification_email_error:emailResult.sent?null:(emailResult.error||(!emailResult.configured?'RESEND_API_KEY nije podešen.':'Email nije poslat.')),accountant_invite_sent:accountantInviteSent,accountant_invite_error:accountantInviteError,redirect:'/login?registered=1'});
   }catch(e:any){
     if(accessRequestId){try{await admin.from('company_access_requests').delete().eq('id',accessRequestId);}catch{}}
     if(newOrgId){try{await admin.from('organizations').delete().eq('id',newOrgId);}catch{}}

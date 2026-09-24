@@ -27,6 +27,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const [inviteMessage,setInviteMessage]=React.useState("");
   const [intakeBusy,setIntakeBusy]=React.useState<"receipts"|"documents"|null>(null);
   const [intakeMessage,setIntakeMessage]=React.useState("");
+  const [databaseUpdated,setDatabaseUpdated]=React.useState(false);
   const [assignmentRequest,setAssignmentRequest]=React.useState<any|null>(null);
   const [assignmentEmployee,setAssignmentEmployee]=React.useState("");
   const [assignmentBusy,setAssignmentBusy]=React.useState(false);
@@ -85,7 +86,13 @@ export default function AccountantHome({profile,organizations,overview,context}:
       if(!r.ok){setIntakeMessage(d.error||"Prijem nije mogao da se obradi.");return;}
       const label=type==="receipts"?"računa":"dokumenata";
       const details=(d.breakdown||[]).map((x:any)=>`${x.name}: ${x.count}`).join(" · ");
-      setIntakeMessage(d.assigned>0?`Raspoređeno ${d.assigned} ${label}${details?` — ${details}`:""}`:`Nema novih ${label} za raspoređivanje.`);
+      if(d.assigned>0){
+        setIntakeMessage(`Raspoređeno ${d.assigned} ${label}${details?` — ${details}`:""}.`);
+        setDatabaseUpdated(true);
+        window.setTimeout(()=>setDatabaseUpdated(false),5000);
+      }else{
+        setIntakeMessage(`Nema novih ${label} za raspoređivanje.`);
+      }
       router.refresh();
     } catch {
       setIntakeMessage("Prijem trenutno nije mogao da se obradi.");
@@ -169,7 +176,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
 
       <div className="grid accountant-summary-grid"><SummaryCard icon={<FileText/>} label="Novi dokumenti" value={newDocuments} note="čeka raspoređivanje"/><SummaryCard icon={<ReceiptText/>} label="Novi računi" value={newReceipts} note="čeka raspoređivanje"/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni računi" value={assignedReceipts} note={period==="month"?"ovog meseca":"ukupno"}/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni dokumenti" value={assignedDocuments} note={period==="month"?"ovog meseca":"ukupno"}/></div>
 
-      <section className="accountant-section"><div className="section-title"><div><span className="pill">PRIJEM</span><h2>Računi i dokumenti klijenata</h2><p className="muted">Dugmad ispod ne preuzimaju fajlove. Ona primaju nove stavke i automatski ih raspoređuju odgovarajućim klijentima. Preuzimanje i štampa rade se tek unutar konkretnog klijenta.</p></div></div>{intakeMessage&&<div className="demo-box" style={{marginBottom:12}}>{intakeMessage}</div>}<div className="grid accountant-summary-grid"><div className="card accountant-summary-card"><div className="accountant-summary-icon"><ReceiptText/></div><div style={{flex:1}}><span>Fiskalni računi</span><strong>{periodReceipts.length}</strong><small>{newReceipts} novih</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("receipts")} disabled={intakeBusy!==null||newReceipts===0}><FileCheck2 size={15}/> {intakeBusy==="receipts"?"Raspoređujem…":"Preuzmi sve račune"}</button></div></div><div className="card accountant-summary-card"><div className="accountant-summary-icon"><FileText/></div><div style={{flex:1}}><span>Dokumenti</span><strong>{periodDocuments.length}</strong><small>{newDocuments} novih</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("documents")} disabled={intakeBusy!==null||newDocuments===0}><FileCheck2 size={15}/> {intakeBusy==="documents"?"Raspoređujem…":"Preuzmi sve dokumente"}</button></div></div></div></section>
+      <section className="accountant-section"><div className="section-title"><div><span className="pill">PRIJEM</span><h2>Računi i dokumenti klijenata</h2><p className="muted">Veliki broj prikazuje samo nove pristigle stavke koje još nisu raspoređene. Klik na „Preuzmi sve“ ažurira bazu i raspoređuje ih odgovarajućim klijentima. Preuzimanje fajla i štampa rade se tek unutar konkretnog klijenta.</p></div></div>{intakeMessage&&<div className="demo-box" style={{marginBottom:12}}>{intakeMessage}</div>}<div className="grid accountant-summary-grid"><div className="card accountant-summary-card"><div className="accountant-summary-icon"><ReceiptText/></div><div style={{flex:1}}><span>Fiskalni računi svih klijenata</span><strong>{newReceipts}</strong><small>{periodReceipts.length} ukupno u prikazanom periodu</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("receipts")} disabled={intakeBusy!==null||newReceipts===0}><FileCheck2 size={15}/> {intakeBusy==="receipts"?"Ažuriram bazu…":"Preuzmi sve račune"}</button></div></div><div className="card accountant-summary-card"><div className="accountant-summary-icon"><FileText/></div><div style={{flex:1}}><span>Dokumenti svih klijenata</span><strong>{newDocuments}</strong><small>{periodDocuments.length} ukupno u prikazanom periodu</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("documents")} disabled={intakeBusy!==null||newDocuments===0}><FileCheck2 size={15}/> {intakeBusy==="documents"?"Ažuriram bazu…":"Preuzmi sve dokumente"}</button></div></div></div></section>
 
       {settings.notify_deadlines&&<div className="grid deadline-grid"><div className="card deadline-card"><CalendarDays/><div><span>Obračun prethodnog meseca</span><b>do 10. u mesecu</b><small>{previousMonthLabel()} → {dueDate(10)}</small></div></div><div className="card deadline-card"><FileText/><div><span>Fakture</span><b>do 10. u mesecu</b><small>rok {dueDate(10)}</small></div></div><div className="card deadline-card"><ReceiptText/><div><span>PDV prijava</span><b>15. u mesecu</b><small>rok {dueDate(15)}</small></div></div></div>}
 
@@ -178,6 +185,8 @@ export default function AccountantHome({profile,organizations,overview,context}:
 
       <section className="accountant-section"><div className="section-title"><div><span className="pill"><Archive size={13}/> PDV PREGLED</span><h2>Ulazni PDV po klijentu</h2></div></div><div className="card vat-table"><div className="table-wrap"><table><thead><tr><th>Klijent</th><th>Računi</th><th>Prihvaćen ulazni PDV</th><th></th></tr></thead><tbody>{filteredClients.map((c:any)=><tr key={c.organization_id}><td><b>{c.name}</b></td><td>{c.receiptCount}</td><td><b>{money(c.vat)}</b></td><td><a className="btn" href={`/app/accountant/clients/${c.organization_id}`}>Pregled / arhiva</a></td></tr>)}</tbody></table></div></div></section>
     </main></div>
+
+    {databaseUpdated&&<div className="database-updated-toast" role="status"><FileCheck2 size={20}/><div><b>Baza je ažurirana</b><span>Nove stavke su raspoređene klijentima.</span></div></div>}
 
     {assignmentRequest&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!assignmentBusy)setAssignmentRequest(null)}}><div className="modal assign-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Dodeli klijenta zaposlenom</h2></div><button className="btn" disabled={assignmentBusy} onClick={()=>setAssignmentRequest(null)}><X size={16}/> Zatvori</button></div><p className="muted"><b>{assignmentRequest.sender_organization?.name||"Novi klijent"}</b> je prihvaćen tek kada kliknete dugme ispod. Izaberite zaposlenog kome klijent pripada ili ga ostavite kod ADMIN knjigovođe.</p><div className="field"><label>Dodela klijenta</label><select className="select" value={assignmentEmployee} onChange={e=>setAssignmentEmployee(e.target.value)}><option value="">ADMIN knjigovođa / ostavi kod mene</option>{assignableEmployees.map((employee:any)=><option key={employee.user_id} value={employee.user_id}>{employee.full_name||employee.username||employee.auth_email||"Zaposleni"}</option>)}</select></div>{assignableEmployees.length===0&&<div className="demo-box">Nemate dodatih zaposlenih. Klijent će biti dodeljen ADMIN knjigovođi.</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} onClick={approveAndAssign} disabled={assignmentBusy}>{assignmentBusy?"Dodeljujem…":"Dodeli i prihvati klijenta"}</button></div></div>}
 

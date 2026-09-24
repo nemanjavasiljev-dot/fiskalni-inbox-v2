@@ -44,6 +44,11 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
   const orgs = rawOrgs.map((o:any)=>({...o,subscription:subscriptionMap.get(String(o.organization_id))||null}));
   const activeOrg = params.org ? orgs.find((x:any)=>x.organization_id===params.org) : orgs[0];
   const activeCompanyConnectionRequests=activeOrg&&activeOrg.organization_type!=='accounting'&&activeOrg.role!=='accountant'?await loadIncomingConnections(admin,'company',activeOrg,profile.auth_email||user.email||''):[];
+  let activeAccountantLinks:any[]=[];
+  if(activeOrg?.company_id&&activeOrg.organization_type!=='accounting'&&activeOrg.role!=='accountant'){
+    const {data}=await admin.from('accountant_company').select('id,accountant_organization_id,status').eq('company_id',activeOrg.company_id).eq('status','active');
+    activeAccountantLinks=data||[];
+  }
 
   const {data:ownPendingAccess}=await supabase.from('company_access_requests')
     .select('id,company_id,organization_id,status,created_at,organizations(name,pib)')
@@ -66,7 +71,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     incomingAccessRequests=(accessRows||[]).map((x:any)=>({...x,requester:requesterMap.get(String(x.requester_user_id))||null}));
     incomingAccountantRequests=(accountantRows||[]).map((x:any)=>({...x,accounting_organization:officeMap.get(String(x.accountant_organization_id))||null}));
   }
-  const accessContext={ownPending:ownPendingAccess||[],incomingAccessRequests,incomingAccountantRequests,incomingConnectionRequests:activeCompanyConnectionRequests};
+  const accessContext={ownPending:ownPendingAccess||[],incomingAccessRequests,incomingAccountantRequests,incomingConnectionRequests:activeCompanyConnectionRequests,hasActiveAccountant:activeAccountantLinks.length>0,activeAccountantLinks};
 
   let accountantOverview:any = null;
   let accountantContext:any = null;

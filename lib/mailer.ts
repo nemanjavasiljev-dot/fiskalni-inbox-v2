@@ -47,16 +47,70 @@ export async function sendBillingInvoiceEmail(opts:{to:string;organizationName:s
   });
 }
 
-async function sendEmail(opts:{to:string;subject:string;html:string;attachments?:Array<{filename:string;content:string}>}){
-  const key=process.env.RESEND_API_KEY;
-  const from=process.env.APP_EMAIL_FROM;
-  if(!key||!from||!opts.to) return {sent:false,configured:false};
-  const response=await fetch('https://api.resend.com/emails',{
-    method:'POST',signal:AbortSignal.timeout(12000),
-    headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-    body:JSON.stringify({from,to:[opts.to],subject:opts.subject,html:opts.html,attachments:opts.attachments})
-  });
-  return {sent:response.ok,configured:true,status:response.status};
+type EmailSendResult={sent:boolean;configured:boolean;status?:number;id?:string;error?:string};
+
+function textFromHtml(html:string){
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi,' ')
+    .replace(/<script[\s\S]*?<\/script>/gi,' ')
+    .replace(/<br\s*\/?\s*>/gi,'\n')
+    .replace(/<\/p>/gi,'\n\n')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;/g,' ')
+    .replace(/&amp;/g,'&')
+    .replace(/&lt;/g,'<')
+    .replace(/&gt;/g,'>')
+    .replace(/&#39;/g,"'")
+    .replace(/&quot;/g,'"')
+    .replace(/[ \t]+/g,' ')
+    .replace(/\n{3,}/g,'\n\n')
+    .trim();
+}
+
+async function sendEmail(opts:{to:string;subject:string;html:string;attachments?:Array<{filename:string;content:string}>}):Promise<EmailSendResult>{
+  const key=String(process.env.RESEND_API_KEY||'').trim();
+  // fiscalbox.rs je verifikovan domen; APP_EMAIL_FROM ostaje opcioni override.
+  const from=String(process.env.APP_EMAIL_FROM||'FiscalBox <noreply@fiscalbox.rs>').trim();
+  const to=String(opts.to||'').trim().toLowerCase();
+  if(!key||!to)return {sent:false,configured:false,error:!key?'RESEND_API_KEY nije podešen.':'Email primaoca nedostaje.'};
+
+  let lastStatus:number|undefined;
+  let lastError='';
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      const response=await fetch('https://api.resend.com/emails',{
+        method:'POST',
+        signal:AbortSignal.timeout(15000),
+        headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+        body:JSON.stringify({
+          from,
+          to:[to],
+          subject:opts.subject,
+          html:opts.html,
+          text:textFromHtml(opts.html),
+          attachments:opts.attachments
+        })
+      });
+      lastStatus=response.status;
+      const raw=await response.text();
+      let payload:any=null;
+      try{payload=raw?JSON.parse(raw):null;}catch{}
+      if(response.ok){
+        const id=String(payload?.id||'');
+        console.info('[FiscalBox mail] sent',{to,status:response.status,id:id||undefined,attempt});
+        return {sent:true,configured:true,status:response.status,id:id||undefined};
+      }
+      lastError=String(payload?.message||payload?.error||raw||`HTTP ${response.status}`).slice(0,500);
+      console.error('[FiscalBox mail] Resend rejected message',{to,status:response.status,error:lastError,attempt});
+      // 4xx (osim 429) se uglavnom neće popraviti ponavljanjem.
+      if(response.status<500&&response.status!==429)break;
+    }catch(error:any){
+      lastError=String(error?.message||error||'Greška pri slanju emaila').slice(0,500);
+      console.error('[FiscalBox mail] transport error',{to,error:lastError,attempt});
+    }
+    if(attempt<3)await new Promise(resolve=>setTimeout(resolve,attempt*450));
+  }
+  return {sent:false,configured:true,status:lastStatus,error:lastError||'Resend nije prihvatio poruku.'};
 }
 
 function escapeHtml(value:string){return value.replace(/[&<>'"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c));}

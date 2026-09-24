@@ -1,0 +1,11 @@
+FiscalBox V5.9.1.8
+
+Provere:
+- TypeScript/TSX syntax: 161 fajlova, 0 sintaksnih gresaka (TypeScript 5.8.3 transpile check)
+- Windows installer fajl: ukljucen
+- Windows ikona: ukljucena
+- Nova SQL migracija: nije potrebna
+
+Napomena:
+- Puni regression test nije pokrenut jer lokalno okruzenje nema instaliran paket web-push, a npm install je istekao u vremenskom limitu.
+- Finalni Next.js production build treba potvrditi na Vercel-u.
