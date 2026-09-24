@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { FileText, ImagePlus, Send, Sparkles, Users, ReceiptText, WalletCards, BadgePercent, Clock3, ShieldCheck } from "lucide-react";
+import { Bell, CreditCard, Database, FileText, FolderOpen, ImagePlus, LogOut, Mail, Send, Settings, Sparkles, Users, ReceiptText, WalletCards, BadgePercent, Clock3, ShieldCheck } from "lucide-react";
 import QrScanner from "@/components/QrScanner";
 import UserBottomNav from "@/components/UserBottomNav";
 import BrandWordmark from "@/components/BrandWordmark";
@@ -36,6 +37,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   const [sendBusy,setSendBusy]=useState(false);
   const [homeMessage,setHomeMessage]=useState("");
   const [sendSchedule,setSendSchedule]=useState(String(activeOrg?.receipt_send_schedule||"manual"));
+  const [savedSendSchedule,setSavedSendSchedule]=useState(String(activeOrg?.receipt_send_schedule||"manual"));
   const [settingsBusy,setSettingsBusy]=useState(false);
   const [settingsMessage,setSettingsMessage]=useState("");
   const [accountantInviteChannel,setAccountantInviteChannel]=useState<"email"|"sms">("email");
@@ -50,9 +52,22 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
   useEffect(()=>{
     setReceiptList(receipts||[]);
     setSendSchedule(String(activeOrg?.receipt_send_schedule||"manual"));
+    setSavedSendSchedule(String(activeOrg?.receipt_send_schedule||"manual"));
     setAccountantInviteContact("");
     setLogoAvailable(Boolean(activeOrg?.logo_path));
   },[receipts,activeOrg?.organization_id,activeOrg?.receipt_send_schedule,activeOrg?.logo_path]);
+
+  useEffect(()=>{
+    if(!moreOpen) return;
+    const previousOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    const onKey=(event:KeyboardEvent)=>{if(event.key==="Escape")setMoreOpen(false)};
+    window.addEventListener("keydown",onKey);
+    return ()=>{document.body.style.overflow=previousOverflow;window.removeEventListener("keydown",onKey)};
+  },[moreOpen]);
+
+  const manualSendEnabled=savedSendSchedule==="manual";
+  const autoSendLabel=savedSendSchedule==="weekly"?"Nedeljno automatsko slanje":"Mesečno automatsko slanje";
 
   const total=useMemo(()=>receiptList.reduce((s:any,r:any)=>s+Number(r.total_amount||0),0),[receiptList]);
   const tax=useMemo(()=>receiptList.reduce((s:any,r:any)=>s+Number(r.total_tax||0),0),[receiptList]);
@@ -156,6 +171,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
 
   async function sendNow(){
     if(!activeOrg||sendBusy) return;
+    if(!manualSendEnabled){setHomeMessage(`${autoSendLabel} je uključeno. Isključite automatsko slanje u meniju Više ako želite ručno slanje.`);return;}
     setSendBusy(true);setHomeMessage("");
     try{
       const r=await fetch("/api/receipts/send-to-accountant",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({organization_id:activeOrg.organization_id})});
@@ -174,7 +190,8 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       const r=await fetch("/api/org/receipt-send-settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({organization_id:activeOrg.organization_id,schedule:sendSchedule})});
       const d=await r.json();
       if(!r.ok) throw new Error(d.error||"Podešavanje nije sačuvano.");
-      setSettingsMessage("Podešavanje automatskog slanja je sačuvano.");
+      setSavedSendSchedule(sendSchedule);
+      setSettingsMessage(sendSchedule==="manual"?"Automatsko slanje je isključeno. Ručno slanje je ponovo dostupno.":"Automatsko slanje je uključeno. Ručno slanje je zaključano dok je raspored aktivan.");
       router.refresh();
     }catch(e:any){setSettingsMessage(e.message||"Podešavanje nije sačuvano.");}
     finally{setSettingsBusy(false);}
@@ -268,7 +285,7 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
       <div className="actions company-home-actions">
         {organizations.length>1&&<select className="select" value={activeOrg?.organization_id||""} onChange={e=>router.push("/app?org="+e.target.value)}>{organizations.map((o:any)=><option value={o.organization_id} key={o.organization_id}>{o.name}</option>)}</select>}
         {activeOrg&&activeOrg.role==="accountant"&&<button className="btn" onClick={openFiles}><FileText size={17}/> Dokumenti klijenta</button>}
-        {isCompanyUser&&<button className="btn btn-primary send-accountant-btn" onClick={sendNow} disabled={sendBusy}><Send size={17}/>{sendBusy?"Šaljem…":`Pošalji knjigovođi${unsentCount?` (${unsentCount})`:""}`}</button>}
+        {isCompanyUser&&<button className={`btn btn-primary send-accountant-btn ${manualSendEnabled?"":"is-auto-locked"}`} onClick={sendNow} disabled={sendBusy||!manualSendEnabled} title={manualSendEnabled?"Ručno pošalji neposlate račune knjigovođi":`${autoSendLabel} je aktivno`}><Send size={17}/>{sendBusy?"Šaljem…":manualSendEnabled?`Pošalji knjigovođi${unsentCount?` (${unsentCount})`:""}`:autoSendLabel}</button>}
         {isCompanyUser&&<button className="btn btn-accent desktop-scan-btn" onClick={openScanner}>Skeniraj QR</button>}
       </div>
     </div>
@@ -288,7 +305,48 @@ export default function Dashboard({profile,organizations,activeOrg,receipts,mast
     </>}
 
     {scan&&activeOrg&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setScan(false)}}><div className="modal qr-modal"><div className="modal-head"><div><span className="pill">NOVI RAČUN</span><h2>QR skener</h2></div><button className="btn" onClick={()=>setScan(false)}>Zatvori</button></div><p className="muted" style={{marginTop:0}}>Posle očitavanja račun se odmah dodaje na listu i automatski kategorizuje.</p><QrScanner organizationId={activeOrg.organization_id} onDone={onScanDone}/></div></div>}
-    {moreOpen&&isCompanyUser&&<div className="bottom-sheet-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}><div className="bottom-sheet"><div className="bottom-sheet-handle"/><div className="bottom-sheet-head"><div><span className="pill">VIŠE</span><h3>Opcije naloga</h3></div><button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button></div><div className="more-list"><div className="more-info"><span>Firma</span><b>{activeOrg.name}</b></div><div className="more-info"><span>Paket</span><b>{String(activeOrg.plan||"basic").toUpperCase()}</b></div>{accessContext?.hasActiveAccountant?<div className="auto-send-settings accountant-connected-box"><b>Knjigovođa je povezan ✓</b><p>Veza sa knjigovođom je aktivna. Novi zahtev se više ne prikazuje jer je povezivanje već realizovano.</p></div>:<div className="auto-send-settings"><b>Pošalji zahtev knjigovođi</b><p>Unesite samo email ili telefon knjigovođe. On dobija obaveštenje i prihvata zahtev direktno u svom FiscalBox dashboardu.</p><div className="invite-channel-switch"><button type="button" className={accountantInviteChannel==="email"?"active":""} onClick={()=>{setAccountantInviteChannel("email");setAccountantInviteContact("")}}>Email</button><button type="button" className={accountantInviteChannel==="sms"?"active":""} onClick={()=>{setAccountantInviteChannel("sms");setAccountantInviteContact("")}}>SMS</button></div><div className="field"><label>{accountantInviteChannel==="email"?"Email knjigovođe":"Telefon knjigovođe"}</label><input className="input" type={accountantInviteChannel==="email"?"email":"tel"} value={accountantInviteContact} onChange={e=>setAccountantInviteContact(e.target.value)} placeholder={accountantInviteChannel==="email"?"knjigovodja@firma.rs":"+381601234567"}/></div><button className="btn btn-primary" onClick={linkAccountant} disabled={accountantLinkBusy||!accountantInviteContact.trim()}>{accountantLinkBusy?"Šaljem zahtev…":"Pošalji zahtev"}</button>{accountantLinkMessage&&<small>{accountantLinkMessage}</small>}</div>}<div className="auto-send-settings"><b>Automatsko slanje knjigovođi</b><p>Izaberite kada da se svi neposlati fiskalni računi automatski proslede knjigovođi.</p><select className="select" value={sendSchedule} onChange={e=>setSendSchedule(e.target.value)}><option value="manual">Isključeno — šaljem ručno</option><option value="weekly">Nedeljno — svakog petka</option><option value="monthly">Mesečno — poslednjeg dana</option></select><button className="btn btn-primary" onClick={saveSendSchedule} disabled={settingsBusy}>{settingsBusy?"Čuvam…":"Sačuvaj raspored"}</button>{settingsMessage&&<small>{settingsMessage}</small>}</div><button className="more-action" onClick={sendNow}>Pošalji račune knjigovođi sada <b>→</b></button><button className="more-action" onClick={openFiles}>Fajlovi <b>→</b></button><a className="more-action" href="/app/notifications">Notifikacije <b>→</b></a><a className="more-action" href={`/app/subscription?organization_id=${activeOrg.organization_id}`}>Pretplata / Nadogradi <b>→</b></a><a className="more-action" href="/app/billing">Moji računi <b>→</b></a><a className="more-action" href={`/api/export/csv?organization_id=${activeOrg.organization_id}`}>Izvezi bazu kao CSV <b>→</b></a><a className="more-action" href="/app/setup">Podešavanja firme <b>→</b></a><form method="post" action="/api/auth/logout"><button className="more-action danger" style={{width:"100%"}}>Odjavi se <b>→</b></button></form></div></div></div>}
+    {moreOpen&&isCompanyUser&&typeof document!=="undefined"&&createPortal(
+      <div className="bottom-sheet-backdrop user-more-backdrop" role="presentation" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}>
+        <section className="bottom-sheet user-more-sheet" role="dialog" aria-modal="true" aria-label="Više opcija">
+          <div className="bottom-sheet-handle"/>
+          <div className="bottom-sheet-head">
+            <div><span className="pill">VIŠE</span><h3>Kompletan meni</h3></div>
+            <button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button>
+          </div>
+          <div className="more-list">
+            <div className="more-info"><span>Firma</span><b>{activeOrg.name}</b></div>
+            <div className="more-info"><span>Paket</span><b>{String(activeOrg.plan||"basic").toUpperCase()}</b></div>
+            {accessContext?.hasActiveAccountant?
+              <div className="auto-send-settings accountant-connected-box"><b>Knjigovođa je povezan ✓</b><p>Veza sa knjigovođom je aktivna. Novi zahtev se više ne prikazuje jer je povezivanje već realizovano.</p></div>:
+              <div className="auto-send-settings">
+                <b>Pošalji zahtev knjigovođi</b><p>Unesite samo email ili telefon knjigovođe. On dobija obaveštenje i prihvata zahtev direktno u svom FiscalBox dashboardu.</p>
+                <div className="invite-channel-switch"><button type="button" className={accountantInviteChannel==="email"?"active":""} onClick={()=>{setAccountantInviteChannel("email");setAccountantInviteContact("")}}>Email</button><button type="button" className={accountantInviteChannel==="sms"?"active":""} onClick={()=>{setAccountantInviteChannel("sms");setAccountantInviteContact("")}}>SMS</button></div>
+                <div className="field"><label>{accountantInviteChannel==="email"?"Email knjigovođe":"Telefon knjigovođe"}</label><input className="input" type={accountantInviteChannel==="email"?"email":"tel"} value={accountantInviteContact} onChange={e=>setAccountantInviteContact(e.target.value)} placeholder={accountantInviteChannel==="email"?"knjigovodja@firma.rs":"+381601234567"}/></div>
+                <button className="btn btn-primary" onClick={linkAccountant} disabled={accountantLinkBusy||!accountantInviteContact.trim()}>{accountantLinkBusy?"Šaljem zahtev…":"Pošalji zahtev"}</button>{accountantLinkMessage&&<small>{accountantLinkMessage}</small>}
+              </div>}
+            <div className={`auto-send-settings ${manualSendEnabled?"manual-mode":"auto-mode"}`}>
+              <b>Automatsko slanje knjigovođi</b>
+              <p>Kada je uključen nedeljni ili mesečni režim, ručno dugme „Pošalji knjigovođi“ je zaključano. Kada izaberete „Isključeno“, šaljete ručno kad god želite.</p>
+              <select className="select" value={sendSchedule} onChange={e=>setSendSchedule(e.target.value)}><option value="manual">Isključeno — šaljem ručno</option><option value="weekly">Nedeljno — svakog petka</option><option value="monthly">Mesečno — poslednjeg dana</option></select>
+              <button className="btn btn-primary" onClick={saveSendSchedule} disabled={settingsBusy}>{settingsBusy?"Čuvam…":"Sačuvaj raspored"}</button>
+              <small className={manualSendEnabled?"manual-send-status":"auto-send-status"}>{manualSendEnabled?"Ručno slanje je aktivno.":`${autoSendLabel} je aktivno. Ručno slanje je zaključano.`}</small>
+              {settingsMessage&&<small>{settingsMessage}</small>}
+            </div>
+            <div className="more-menu-grid">
+              <button className={`more-grid-item ${manualSendEnabled?"":"disabled"}`} onClick={sendNow} disabled={!manualSendEnabled||sendBusy}><Send size={21}/><b>{manualSendEnabled?"Pošalji račune":"Automatsko slanje"}</b><span>{manualSendEnabled?"Pošalji knjigovođi sada":autoSendLabel}</span></button>
+              <button className="more-grid-item" onClick={()=>{setMoreOpen(false);openFiles()}}><FolderOpen size={21}/><b>Fajlovi</b><span>Dokumenti i arhiva</span></button>
+              <a className="more-grid-item" href="/app/messages"><Mail size={21}/><b>Poruke</b><span>Primljene i poslate</span></a>
+              <a className="more-grid-item" href="/app/notifications"><Bell size={21}/><b>Notifikacije</b><span>Obaveštenja i reakcije</span></a>
+              <a className="more-grid-item" href={`/app/subscription?organization_id=${activeOrg.organization_id}`}><CreditCard size={21}/><b>Pretplata</b><span>Paket i nadogradnja</span></a>
+              <a className="more-grid-item" href="/app/billing"><ReceiptText size={21}/><b>Moji računi</b><span>Računi i predračuni</span></a>
+              <a className="more-grid-item" href={`/api/export/csv?organization_id=${activeOrg.organization_id}`}><Database size={21}/><b>CSV izvoz</b><span>Izvezi bazu računa</span></a>
+              <a className="more-grid-item" href="/app/setup"><Settings size={21}/><b>Podešavanja</b><span>Firma i korisnik</span></a>
+              <form method="post" action="/api/auth/logout" className="more-grid-form"><button className="more-grid-item danger" type="submit"><LogOut size={21}/><b>Odjava</b><span>Završi sesiju</span></button></form>
+            </div>
+          </div>
+        </section>
+      </div>,document.body
+    )}
     {isCompanyUser&&<UserBottomNav active={navActive} onHome={goHome} onSearch={openSearch} onScan={openScanner} onFiles={openFiles} onMore={openMore}/>} 
   </Shell>;
 }

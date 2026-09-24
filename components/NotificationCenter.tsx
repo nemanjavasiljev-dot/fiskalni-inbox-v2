@@ -50,7 +50,7 @@ export default function NotificationCenter({initialItems=[]}:{initialItems:any[]
         <button className={filter==="unread"?"active":""} onClick={()=>setFilter("unread")}>Nepročitane <span>{unread}</span></button>
         <button className={filter==="reacted"?"active":""} onClick={()=>setFilter("reacted")}>Reagovane</button>
       </div>
-      <div className="notification-center-hint"><Bell size={15}/> Poruke, zahtevi, fajlovi i sistemska obaveštenja</div>
+      <div className="notification-center-hint"><Bell size={15}/> Zahtevi, fajlovi i sistemska obaveštenja</div>
     </div>
     {message&&<div className="home-message">{message}</div>}
     <div className="notification-center-list">
