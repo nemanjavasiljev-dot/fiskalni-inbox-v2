@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { normalizeEmail, normalizePhone, requestMatchesRecipient } from '@/lib/connection-requests';
+import { requestMatchesRecipient } from '@/lib/connection-requests';
 import { sendPushToOrganization } from '@/lib/push-delivery';
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
@@ -13,6 +13,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   const decision=body.decision;
   if(!['approve','reject'].includes(decision))return NextResponse.json({error:'Nepoznata odluka.'},{status:400});
   const organizationId=String(body.organization_id||'');
+  const employeeUserId=String(body.employee_user_id||'').trim();
   const admin=createAdminClient();
   const {data:req}=await admin.from('connection_requests').select('*').eq('id',id).maybeSingle();
   if(!req||req.status!=='pending')return NextResponse.json({error:'Zahtev više nije aktivan.'},{status:410});
@@ -37,16 +38,18 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   if(!recipientOrg)return NextResponse.json({error:'Ovaj zahtev nije namenjen vašem nalogu.'},{status:403});
   if(req.target_organization_id && String(req.target_organization_id)!==String(recipientOrg.id))return NextResponse.json({error:'Zahtev je namenjen drugoj organizaciji.'},{status:403});
   if(!req.target_organization_id && !requestMatchesRecipient(req,profile?.auth_email||user.email||'',recipientOrg))return NextResponse.json({error:'Email ili telefon naloga se ne poklapa sa zahtevom.'},{status:403});
-
   if(!user.email_confirmed_at)return NextResponse.json({error:'Potvrdite email adresu pre prihvatanja zahteva.'},{status:403});
-  const {error}=await admin.rpc('respond_connection_request',{
-    p_request:id,p_actor:user.id,p_recipient:recipientOrg.id,p_decision:decision
+
+  const {data:rpcResult,error}=await admin.rpc('respond_connection_request_v2',{
+    p_request:id,p_actor:user.id,p_recipient:recipientOrg.id,p_decision:decision,p_employee:employeeUserId||null
   });
-  if(error)return NextResponse.json({error:'Zahtev nije obrađen. Osvežite stranicu i pokušajte ponovo.'},{status:409});
+  if(error)return NextResponse.json({error:error.message||'Zahtev nije obrađen. Osvežite stranicu i pokušajte ponovo.'},{status:409});
+  const assignedTo=rpcResult?.assigned_to||employeeUserId||null;
+
   await sendPushToOrganization(admin,String(req.sender_organization_id),{
     title:decision==='approve'?'Zahtev prihvaćen':'Zahtev odbijen',
     body:`${recipientOrg.name||'Primalac'} je ${decision==='approve'?'prihvatio':'odbio'} zahtev za povezivanje.`,
-    url:'/app',tag:`connection-response-${id}`
+    url:'/app',tag:`connection-response-${id}`,notificationType:'connection_response'
   }).catch(()=>{});
-  return NextResponse.json({ok:true,message:decision==='approve'?'Povezivanje je odobreno.':'Zahtev je odbijen.'});
+  return NextResponse.json({ok:true,assigned_to:assignedTo,message:decision==='approve'?(assignedTo?'Klijent je prihvaćen i dodeljen zaposlenom.':'Klijent je prihvaćen i ostavljen kod ADMIN knjigovođe.'):'Zahtev je odbijen.'});
 }

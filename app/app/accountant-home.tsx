@@ -27,6 +27,9 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const [inviteMessage,setInviteMessage]=React.useState("");
   const [intakeBusy,setIntakeBusy]=React.useState<"receipts"|"documents"|null>(null);
   const [intakeMessage,setIntakeMessage]=React.useState("");
+  const [assignmentRequest,setAssignmentRequest]=React.useState<any|null>(null);
+  const [assignmentEmployee,setAssignmentEmployee]=React.useState("");
+  const [assignmentBusy,setAssignmentBusy]=React.useState(false);
   const start=monthStart();
   const settings=context?.userSettings||{notify_new_receipts:true,notify_new_documents:true,notify_deadlines:true};
   const receiptStatus: Map<string,any>=new Map((overview.receiptStatuses||[]).map((s:any)=>[String(s.receipt_id),s]));
@@ -42,6 +45,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const connectionRequests=context?.incomingConnectionRequests||[];
   const notificationCount=(settings.notify_new_documents?allUnreadDocs.length:0)+(settings.notify_new_receipts?allUnreadReceipts.length:0)+connectionRequests.length;
   const orgMap=new Map(organizations.map((o:any)=>[String(o.organization_id),o]));
+  const assignableEmployees=(context?.staff||[]).filter((x:any)=>x.office_role==="employee");
 
   const clientStats=organizations.map((o:any)=>{
     const id=String(o.organization_id);
@@ -91,6 +95,12 @@ export default function AccountantHome({profile,organizations,overview,context}:
   }
 
   async function reviewConnection(id:string,decision:"approve"|"reject"){
+    if(decision==="approve"&&context?.isAdmin){
+      const row=liveConnectionRequests.find((x:any)=>String(x.id)===String(id))||connectionRequests.find((x:any)=>String(x.id)===String(id));
+      setAssignmentRequest(row||{id});
+      setAssignmentEmployee("");
+      return;
+    }
     const officeId=context?.office?.organization_id||context?.office?.id;
     const r=await fetch(`/api/connections/${id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision,organization_id:officeId})});
     const d=await r.json();
@@ -99,19 +109,63 @@ export default function AccountantHome({profile,organizations,overview,context}:
     router.refresh();
   }
 
+  async function approveAndAssign(){
+    if(!assignmentRequest)return;
+    const officeId=context?.office?.organization_id||context?.office?.id;
+    setAssignmentBusy(true);setInviteMessage("");
+    try{
+      const r=await fetch(`/api/connections/${assignmentRequest.id}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision:"approve",organization_id:officeId,employee_user_id:assignmentEmployee||null})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"Zahtev nije obrađen.");
+      setInviteMessage(d.message||"Klijent je prihvaćen.");
+      setAssignmentRequest(null);setAssignmentEmployee("");
+      router.refresh();
+    }catch(e:any){setInviteMessage(e?.message||"Zahtev nije obrađen.");}
+    finally{setAssignmentBusy(false);}
+  }
+
   const notificationItems=[
     ...(settings.notify_new_documents?allUnreadDocs.slice(0,6).map((d:any)=>({kind:"Dokument",id:d.id,org:d.organization_id,title:d.file_name,date:d.sent_at||d.created_at})):[]),
     ...(settings.notify_new_receipts?allUnreadReceipts.slice(0,6).map((r:any)=>({kind:"Račun",id:r.id,org:r.organization_id,title:r.merchant_name||r.invoice_number||"Fiskalni račun",date:r.sent_to_accountant_at||r.created_at})):[])
   ].sort((a:any,b:any)=>new Date(b.date).getTime()-new Date(a.date).getTime()).slice(0,10);
 
+  const [liveNotificationCount,setLiveNotificationCount]=React.useState(notificationCount);
+  const [liveConnectionRequests,setLiveConnectionRequests]=React.useState<any[]>(connectionRequests);
+  const [liveNotificationItems,setLiveNotificationItems]=React.useState<any[]>(notificationItems);
+  const notificationSignature=React.useRef<string|null>(null);
+
+  React.useEffect(()=>{
+    let cancelled=false;
+    async function pollNotifications(){
+      try{
+        const response=await fetch("/api/accountant/notifications",{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+        if(!response.ok)return;
+        const data=await response.json();
+        if(cancelled)return;
+        setLiveNotificationCount(Number(data.count||0));
+        setLiveConnectionRequests(Array.isArray(data.connection_requests)?data.connection_requests:[]);
+        setLiveNotificationItems(Array.isArray(data.items)?data.items:[]);
+        const nextSignature=String(data.signature||"");
+        if(notificationSignature.current===null){notificationSignature.current=nextSignature;return;}
+        if(nextSignature!==notificationSignature.current){
+          notificationSignature.current=nextSignature;
+          router.refresh();
+        }
+      }catch{}
+    }
+    void pollNotifications();
+    const timer=window.setInterval(()=>{void pollNotifications()},5000);
+    return()=>{cancelled=true;window.clearInterval(timer)};
+  },[router]);
+
   return <div className="app-shell accountant-shell">
-    <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a><div className="actions"><PushNotificationOptIn/><button className="btn notification-button" onClick={()=>setNotificationsOpen(v=>!v)}><Bell size={17}/>{notificationCount>0&&<span>{notificationCount}</span>}</button><a className="btn" href="/app/accountant/settings"><Settings size={16}/> Podešavanja</a><span className="muted accountant-username">{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>
+    <header className="appbar"><div className="container appbar-in"><a className="brand" href="/app"><span className="logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a><div className="actions"><PushNotificationOptIn/><button className="btn notification-button" onClick={()=>setNotificationsOpen(v=>!v)}><Bell size={17}/>{liveNotificationCount>0&&<span>{liveNotificationCount}</span>}</button><a className="btn" href="/app/accountant/settings"><Settings size={16}/> Podešavanja</a><span className="muted accountant-username">{profile.username}</span><form method="post" action="/api/auth/logout"><button className="btn">Odjava</button></form></div></div></header>
     <div className="accountant-desktop-layout"><AccountantDesktopMenu isAdmin={Boolean(context?.isAdmin)}/><main className="app-main accountant-main">
       <div className="app-head accountant-head-main"><div><span className="pill">{context?.isAdmin?"ADMIN KNJIGOVOĐA":"KNJIGOVOĐA"}</span><h1>Radni pregled</h1><p className="muted">{context?.office?.name&&<><b>{context.office.name}</b> · </>}podrazumevano je prikazan tekući mesec: <b>{currentMonthLabel()}</b>.</p></div><div className="period-switch"><button className={period==="month"?"active":""} onClick={()=>setPeriod("month")}>Tekući mesec</button><button className={period==="total"?"active":""} onClick={()=>setPeriod("total")}>Ukupno</button></div></div>
 
-      {notificationsOpen&&<div className="card notification-panel"><div className="notification-panel-head"><div><Bell size={18}/><b>Notifikacije</b></div><button onClick={()=>setNotificationsOpen(false)}>×</button></div>{connectionRequests.map((r:any)=><div key={`conn-${r.id}`} className="notification-row"><Users size={17}/><div><b>Novi zahtev za povezivanje</b><span>{r.sender_organization?.name||"Firma"}</span></div></div>)}{notificationItems.map((n:any)=>{const org:any=orgMap.get(String(n.org));return <a key={`${n.kind}-${n.id}`} className="notification-row" href={`/app/accountant/clients/${n.org}`}><FileText size={17}/><div><b>{n.kind}: {n.title}</b><span>{org?.name||"Klijent"} · {dt(n.date)}</span></div></a>})}{!connectionRequests.length&&!notificationItems.length&&<div className="notification-empty">Nema novih stavki prema vašim podešavanjima.</div>}</div>}
+      {notificationsOpen&&<div className="card notification-panel"><div className="notification-panel-head"><div><Bell size={18}/><b>Notifikacije</b></div><button onClick={()=>setNotificationsOpen(false)}>×</button></div>{liveConnectionRequests.map((r:any)=><div key={`conn-${r.id}`} className="notification-row"><Users size={17}/><div><b>Novi zahtev za povezivanje</b><span>{r.sender_organization?.name||"Firma"}</span></div></div>)}{liveNotificationItems.map((n:any)=>{const org:any=orgMap.get(String(n.org));return <a key={`${n.kind}-${n.id}`} className="notification-row" href={`/app/accountant/clients/${n.org}`}><FileText size={17}/><div><b>{n.kind}: {n.title}</b><span>{org?.name||"Klijent"} · {dt(n.date)}</span></div></a>})}{!liveConnectionRequests.length&&!liveNotificationItems.length&&<div className="notification-empty">Nema novih stavki prema vašim podešavanjima.</div>}</div>}
 
-      {connectionRequests.length>0&&<div className="card company-requests-card connection-request-card"><div className="section-title"><div><span className="pill">NOVI ZAHTEVI</span><h3>Klijenti koji žele povezivanje</h3></div></div><div className="company-request-list">{connectionRequests.map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.sender_organization?.name||"Firma"}</b><span>Poslala je zahtev putem {r.channel==="sms"?"SMS-a":"emaila"}. Prihvatite da se firma doda u vaše klijente.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewConnection(r.id,"approve")}>Prihvati</button><button className="btn" onClick={()=>reviewConnection(r.id,"reject")}>Odbij</button></div></div>)}</div></div>}
+      {liveConnectionRequests.length>0&&<div className="card company-requests-card connection-request-card"><div className="section-title"><div><span className="pill">NOVI ZAHTEVI</span><h3>Klijenti koji žele povezivanje</h3></div></div><div className="company-request-list">{liveConnectionRequests.map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.sender_organization?.name||"Firma"}</b><span>Poslala je zahtev putem {r.channel==="sms"?"SMS-a":"emaila"}. Prihvatite da se firma doda u vaše klijente.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewConnection(r.id,"approve")}>Prihvati</button><button className="btn" onClick={()=>reviewConnection(r.id,"reject")}>Odbij</button></div></div>)}</div></div>}
 
       <div className="grid accountant-summary-grid"><SummaryCard icon={<FileText/>} label="Novi dokumenti" value={newDocuments} note="čeka raspoređivanje"/><SummaryCard icon={<ReceiptText/>} label="Novi računi" value={newReceipts} note="čeka raspoređivanje"/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni računi" value={assignedReceipts} note={period==="month"?"ovog meseca":"ukupno"}/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni dokumenti" value={assignedDocuments} note={period==="month"?"ovog meseca":"ukupno"}/></div>
 
@@ -124,6 +178,8 @@ export default function AccountantHome({profile,organizations,overview,context}:
 
       <section className="accountant-section"><div className="section-title"><div><span className="pill"><Archive size={13}/> PDV PREGLED</span><h2>Ulazni PDV po klijentu</h2></div></div><div className="card vat-table"><div className="table-wrap"><table><thead><tr><th>Klijent</th><th>Računi</th><th>PDV sa fiskalnih računa</th><th></th></tr></thead><tbody>{filteredClients.map((c:any)=><tr key={c.organization_id}><td><b>{c.name}</b></td><td>{c.receiptCount}</td><td><b>{money(c.vat)}</b></td><td><a className="btn" href={`/app/accountant/clients/${c.organization_id}`}>Pregled / arhiva</a></td></tr>)}</tbody></table></div></div></section>
     </main></div>
+
+    {assignmentRequest&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!assignmentBusy)setAssignmentRequest(null)}}><div className="modal assign-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Dodeli klijenta zaposlenom</h2></div><button className="btn" disabled={assignmentBusy} onClick={()=>setAssignmentRequest(null)}><X size={16}/> Zatvori</button></div><p className="muted"><b>{assignmentRequest.sender_organization?.name||"Novi klijent"}</b> je prihvaćen tek kada kliknete dugme ispod. Izaberite zaposlenog kome klijent pripada ili ga ostavite kod ADMIN knjigovođe.</p><div className="field"><label>Dodela klijenta</label><select className="select" value={assignmentEmployee} onChange={e=>setAssignmentEmployee(e.target.value)}><option value="">ADMIN knjigovođa / ostavi kod mene</option>{assignableEmployees.map((employee:any)=><option key={employee.user_id} value={employee.user_id}>{employee.full_name||employee.username||employee.auth_email||"Zaposleni"}</option>)}</select></div>{assignableEmployees.length===0&&<div className="demo-box">Nemate dodatih zaposlenih. Klijent će biti dodeljen ADMIN knjigovođi.</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} onClick={approveAndAssign} disabled={assignmentBusy}>{assignmentBusy?"Dodeljujem…":"Dodeli i prihvati klijenta"}</button></div></div>}
 
     {addOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setAddOpen(false)}}><div className="modal add-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Pošalji zahtev klijentu</h2></div><button className="btn" onClick={()=>setAddOpen(false)}><X size={16}/> Zatvori</button></div><form onSubmit={addClient}><p className="muted">Unesite samo email ili telefon klijenta. Klijent dobija obaveštenje i prihvata zahtev u svom FiscalBox dashboardu.</p><div className="invite-channel-switch"><button type="button" className={inviteChannel==="email"?"active":""} onClick={()=>{setInviteChannel("email");setInviteContact("")}}>Email</button><button type="button" className={inviteChannel==="sms"?"active":""} onClick={()=>{setInviteChannel("sms");setInviteContact("")}}>SMS</button></div><div className="field" style={{marginTop:14}}><label>{inviteChannel==="email"?"Email klijenta":"Telefon klijenta"}</label><input className="input" type={inviteChannel==="email"?"email":"tel"} value={inviteContact} onChange={e=>setInviteContact(e.target.value)} placeholder={inviteChannel==="email"?"firma@domen.rs":"+381601234567"} required/></div>{inviteMessage&&<div className="demo-box">{inviteMessage}</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={inviteBusy||!inviteContact.trim()}>{inviteBusy?"Šaljem zahtev…":"Pošalji zahtev"}</button></form></div></div>}
   </div>;

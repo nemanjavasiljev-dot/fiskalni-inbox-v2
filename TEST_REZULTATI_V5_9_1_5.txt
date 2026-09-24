@@ -1,0 +1,17 @@
+FiscalBox V5.9.1.5
+===================
+
+Syntax check:
+- 155 TS/TSX fajlova
+- 0 sintaksnih grešaka
+- TypeScript parser 5.8.3
+
+Regression test:
+- nije pokrenut do kraja u lokalnom okruženju jer dependency `web-push` nije instaliran u sandbox node_modules.
+- Vercel production build ostaje konačna provera tipova i bundlovanja.
+
+Promene:
+- godišnji pregled klijenta kod knjigovođe
+- godišnji ZIP download iz klijenta
+- automatsko proveravanje knjigovođa notifikacija na 5 sekundi preko /api/accountant/notifications
+- dashboard server refresh samo kada se stanje notifikacija promeni

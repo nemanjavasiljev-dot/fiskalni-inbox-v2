@@ -1,6 +1,6 @@
 {
   "name": "fiscalbox-app",
-  "version": "5.9.1.3",
+  "version": "5.9.1.6",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -95,6 +95,19 @@ export function verificationStatus(rawStatus: unknown) {
   return {text:s,valid:null as boolean|null};
 }
 
+function buyerPibFromJournal(journal: unknown) {
+  const text = String(journal ?? "");
+  if (!text.trim()) return null;
+
+  // eFiskalizacija journal često prikazuje kupca kao: "ID kupca: 10:114814160".
+  // Prefiks 10 označava poreski identifikator, dok je narednih 9 cifara PIB.
+  const labeled = text.match(/(?:ID\s*kupca|ИД\s*купца|Buyer\s*ID)\s*[:：]\s*(?:10\s*[:：]\s*)?(\d{9})(?!\d)/i);
+  if (labeled) return labeled[1];
+
+  const typed = text.match(/(?:^|\s)10\s*[:：]\s*(\d{9})(?!\d)/m);
+  return typed ? typed[1] : null;
+}
+
 export function normalizeVerification(raw: unknown) {
   const e = allEntries(raw);
   const statusRaw = pickScalar(e,["status","verificationstatus","invoicestatus"]);
@@ -106,6 +119,12 @@ export function normalizeVerification(raw: unknown) {
   const counterByType = num(pickScalar(e,["counterbyinvoiceandtransactiontype","transactiontypecounter"]));
   const invoiceCounter = String(pickScalar(e,["invoicecounter"]) || "") ||
     (counterByType != null && totalCounter != null ? `${counterByType}/${totalCounter}${extension || ""}` : null);
+
+  const journal = String(pickScalar(e,["journal","invoicejournal"]) || "") || null;
+  const directBuyerPib = normalizePib(pickScalar(e, [
+    "buyertin", "buyerid", "buyerpib", "buyeridentification", "buyeridentificationnumber"
+  ]));
+  const buyerPib = directBuyerPib || buyerPibFromJournal(journal);
 
   return {
     verification_status_text: status.text,
@@ -133,9 +152,7 @@ export function normalizeVerification(raw: unknown) {
       "totaltax", "taxamount", "vatamount", "vat"
     ])),
     payment_method: paymentNames(e),
-    buyer_pib: normalizePib(pickScalar(e, [
-      "buyertin", "buyerid", "buyerpib"
-    ])),
+    buyer_pib: buyerPib,
     buyer_cost_center: String(pickScalar(e,["buyercostcenterid","buyercostcenter"]) || "") || null,
     requested_by: String(pickScalar(e,["requestedby"]) || "") || null,
     signed_by: String(pickScalar(e,["signedby"]) || "") || null,
@@ -143,7 +160,7 @@ export function normalizeVerification(raw: unknown) {
     invoice_type_extension: extension,
     total_counter: totalCounter,
     counter_by_type: counterByType,
-    journal: String(pickScalar(e,["journal","invoicejournal"]) || "") || null,
+    journal,
     reference_number: String(pickScalar(e,["referencedocumentnumber","referencenumber"]) || "") || null,
     pos_number: String(pickScalar(e,["posnumber","mrc"]) || "") || null
   };

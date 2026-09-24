@@ -34,7 +34,7 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"inbox" | "sent">(activeOrg.role === "accountant" ? "sent" : "inbox");
+  const [tab, setTab] = useState<"inbox" | "sent" | "archive">(activeOrg.role === "accountant" ? "sent" : "inbox");
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -50,10 +50,13 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return documents.filter((d: any) => {
-      if (!isAccountant && d.status !== tab) return false;
+      if (!isAccountant) {
+        if (tab === "archive") { if (!d.archived_at) return false; }
+        else if (d.status !== tab) return false;
+      }
       if (isAccountant && d.status !== "sent") return false;
       if (!q) return true;
-      return [d.file_name, d.mime_type, d.source].some((v: any) => String(v || "").toLowerCase().includes(q));
+      return [d.file_name, d.mime_type, d.source, d.accountant_message].some((v: any) => String(v || "").toLowerCase().includes(q));
     });
   }, [documents, query, tab, isAccountant]);
 
@@ -143,7 +146,7 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
 
       <div className="card files-panel">
         <div className="files-toolbar">
-          <div className="files-tabs">{!isAccountant && <button className={tab==="inbox"?"active":""} onClick={()=>setTab("inbox")}>Fajlovi</button>}<button className={tab==="sent"?"active":""} onClick={()=>setTab("sent")}>{isAccountant ? "Primljeni dokumenti" : "Poslati dokumenti"}</button></div>
+          <div className="files-tabs">{!isAccountant && <button className={tab==="inbox"?"active":""} onClick={()=>setTab("inbox")}>Fajlovi</button>}<button className={tab==="sent"?"active":""} onClick={()=>setTab("sent")}>{isAccountant ? "Primljeni dokumenti" : "Poslati dokumenti"}</button>{!isAccountant&&<button className={tab==="archive"?"active":""} onClick={()=>setTab("archive")}>Arhiva</button>}</div>
           <div className="files-search"><Search size={18}/><input ref={searchInput} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pretraži fajlove…"/></div>
         </div>
 
@@ -151,12 +154,12 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
 
         <div className="files-list">
           {filtered.map((d:any)=><div className="file-row" key={d.id}>
-            {!isAccountant && tab==="inbox" && <label className="file-check"><input type="checkbox" checked={selected.includes(d.id)} onChange={()=>toggle(d.id)}/><span/></label>}
+            {!isAccountant && tab==="inbox" && d.direction!=="accountant_to_client" && <label className="file-check"><input type="checkbox" checked={selected.includes(d.id)} onChange={()=>toggle(d.id)}/><span/></label>}
             <div className="file-type-icon">{iconFor(d)}</div>
-            <div className="file-main"><b>{d.file_name}</b><span>{bytes(Number(d.size_bytes||0))} · {d.source==="scan"?"Skenirano":d.source==="camera"?"Fotografija":"Fajl"} · {dt(d.created_at)}</span>{d.sent_at&&<small>Poslato: {dt(d.sent_at)}</small>}</div>
-            <div className="file-status"><span className={`badge ${d.status==="sent"?"":"warn"}`}>{d.status==="sent"?"POSLATO":"SPREMNO"}</span><a className="btn file-download" href={`/api/documents/${d.id}/download`}>Preuzmi</a></div>
+            <div className="file-main"><b>{d.file_name}</b><span>{bytes(Number(d.size_bytes||0))} · {d.source==="scan"?"Skenirano":d.source==="camera"?"Fotografija":"Fajl"} · {dt(d.created_at)}</span>{d.direction==="accountant_to_client"&&<small className="accountant-sent-note">Od knjigovođe · automatski arhivirano{d.sent_to_client_at?` · ${dt(d.sent_to_client_at)}`:""}</small>}{d.accountant_message&&<small className="accountant-sent-message">Poruka: {d.accountant_message}</small>}{d.sent_at&&d.direction!=="accountant_to_client"&&<small>Poslato: {dt(d.sent_at)}</small>}</div>
+            <div className="file-status">{d.direction==="accountant_to_client"?<span className="badge accountant-file-badge">OD KNJIGOVOĐE</span>:<span className={`badge ${d.status==="sent"?"":"warn"}`}>{d.status==="sent"?"POSLATO":"SPREMNO"}</span>}<a className="btn file-download" href={`/api/documents/${d.id}/download`}>Preuzmi</a></div>
           </div>)}
-          {filtered.length===0 && <div className="files-empty"><FolderOpen size={34}/><b>Nema dokumenata</b><span>{query?"Nema rezultata za ovu pretragu.":isAccountant?"Klijent još nije poslao dokumente.":tab==="sent"?"Još nema poslatih dokumenata.":"Dodajte prvi dokument iznad."}</span></div>}
+          {filtered.length===0 && <div className="files-empty"><FolderOpen size={34}/><b>Nema dokumenata</b><span>{query?"Nema rezultata za ovu pretragu.":isAccountant?"Klijent još nije poslao dokumente.":tab==="sent"?"Još nema poslatih dokumenata.":tab==="archive"?"Arhiva je trenutno prazna.":"Dodajte prvi dokument iznad."}</span></div>}
         </div>
       </div>
     </main>

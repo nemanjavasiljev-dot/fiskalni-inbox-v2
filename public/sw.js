@@ -1,4 +1,4 @@
-const CACHE='fiscalbox-public-v6';
+const CACHE='fiscalbox-public-v7';
 const PUBLIC_SHELL=['/manifest.webmanifest','/icons/icon-192.png','/icons/icon-512.png'];
 
 self.addEventListener('install',event=>{
@@ -41,7 +41,7 @@ self.addEventListener('push',event=>{
     renotify:true,
     requireInteraction:false,
     timestamp:Date.now(),
-    data:{url:data.url||'/app'}
+    data:{url:data.url||'/app',eventKey:data.eventKey||''}
   };
   event.waitUntil((async()=>{
     const openClients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
