@@ -19,7 +19,7 @@ export async function POST(request:Request){
   const {data:relation,error}=await ctx.admin.from('accountant_company').upsert({accountant_organization_id:office.id,company_id:clientCompanyId,client_organization_id:client.id,status:action,requested_by:ctx.user.id,approved_by:action==='active'?ctx.user.id:null,approved_at:action==='active'?now:null,updated_at:now},{onConflict:'accountant_organization_id,company_id'}).select('*').single();
   if(error)return NextResponse.json({error:error.message},{status:400});
   if(action==='active'){
-    await ctx.admin.from('organization_members').upsert({organization_id:client.id,user_id:office.owner_user_id,role:'accountant'},{onConflict:'organization_id,user_id'});
+    await ctx.admin.from('organization_members').upsert({organization_id:client.id,user_id:office.owner_user_id,role:'accountant'},{onConflict:'organization_id,user_id',ignoreDuplicates:true});
   }else{
     await ctx.admin.from('organization_members').delete().eq('organization_id',client.id).eq('user_id',office.owner_user_id).eq('role','accountant');
   }

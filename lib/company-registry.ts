@@ -51,7 +51,7 @@ export function normalizeCompanyName(value: unknown) {
   return transliterateSerbian(String(value ?? ''))
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[čćžšđ]/g, ch => ({'č':'c','ć':'c','ž':'z','š':'s','đ':'d'} as Record<string,string>)[ch] || ch)
+    .replace(/[čćžšđ]/g, ch => ({'č':'c','ć':'c','ž':'z','š':'s','đ':'dj'} as Record<string,string>)[ch] || ch)
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -123,9 +123,9 @@ export async function checkSearchRateLimit(key: string) {
     p_window_seconds: 60,
   });
   if (error) {
-    // Search should not fail closed because of an internal rate-limit persistence problem.
+    // Fail closed: a missing migration must not disable abuse protection.
     console.error('company-search-rate-limit', error.message);
-    return true;
+    return false;
   }
   return data === true;
 }

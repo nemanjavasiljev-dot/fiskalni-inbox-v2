@@ -1,5 +1,5 @@
-const CACHE='fiscalbox-public-v3';
-const PUBLIC_SHELL=['/','/login','/register','/manifest.webmanifest','/icons/icon-192.png','/icons/icon-512.png'];
+const CACHE='fiscalbox-public-v5';
+const PUBLIC_SHELL=['/manifest.webmanifest','/icons/icon-192.png','/icons/icon-512.png'];
 
 self.addEventListener('install',event=>{
   self.skipWaiting();
@@ -23,7 +23,7 @@ self.addEventListener('fetch',event=>{
   event.respondWith(
     fetch(event.request)
       .then(response=>{
-        if(response.ok){const copy=response.clone();caches.open(CACHE).then(c=>c.put(event.request,copy)).catch(()=>{})}
+        if(response.ok&&!response.redirected&&!/private|no-store/i.test(response.headers.get('cache-control')||'')){const copy=response.clone();caches.open(CACHE).then(c=>c.put(event.request,copy)).catch(()=>{})}
         return response;
       })
       .catch(()=>caches.match(event.request).then(r=>r||Response.error()))
@@ -38,7 +38,8 @@ self.addEventListener('push',event=>{
 
 self.addEventListener('notificationclick',event=>{
   event.notification.close();
-  const url=event.notification.data?.url||'/app';
+  let url='/app';
+  try{const target=new URL(event.notification.data?.url||'/app',self.location.origin);if(target.origin===self.location.origin)url=target.href;}catch{}
   event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
     for(const client of list){if('focus' in client){client.navigate(url);return client.focus();}}
     return clients.openWindow(url);

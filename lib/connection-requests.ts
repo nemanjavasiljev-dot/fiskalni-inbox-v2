@@ -23,7 +23,7 @@ async function resolveTargetByEmail(admin:any,targetKind:OrganizationKind,email:
   const direct=await admin.from('organizations')
     .select('id,name,organization_type,owner_user_id,contact_email,contact_phone,company_id')
     .eq('organization_type',targetKind)
-    .ilike('contact_email',email)
+    .eq('contact_email',email)
     .limit(1)
     .maybeSingle();
   if(direct.data)return direct.data;
@@ -75,6 +75,8 @@ export async function createConnectionRequest(opts:{
   const targetOrg=channel==='email'
     ? await resolveTargetByEmail(admin,targetKind,email)
     : await resolveTargetByPhone(admin,targetKind,phone);
+
+  if(channel==='sms'&&!targetOrg)throw new Error('Za SMS povezivanje primalac mora već imati nalog. Za novog primaoca koristite email.');
 
   // Stari isti zahtev više nije aktivan.
   let oldQuery=admin.from('connection_requests')
@@ -134,10 +136,12 @@ export async function createConnectionRequest(opts:{
 
 export function requestMatchesRecipient(req:any,userEmail:string,org:any){
   if(req.target_organization_id && String(req.target_organization_id)===String(org?.id||org?.organization_id))return true;
+  if(req.target_organization_id) return false;
   if(req.channel==='email'){
     const wanted=normalizeEmail(req.recipient_email);
-    return Boolean(wanted && (wanted===normalizeEmail(userEmail)||wanted===normalizeEmail(org?.contact_email)));
+    return Boolean(wanted && wanted===normalizeEmail(userEmail));
   }
-  if(req.channel==='sms')return normalizePhone(req.recipient_phone)===normalizePhone(org?.contact_phone);
+  // An unverified editable phone is not proof of invitation ownership.
+  if(req.channel==='sms')return false;
   return false;
 }

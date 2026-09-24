@@ -4,7 +4,7 @@ import { digitsOnly, normalizeCompanyName, publicCompany, type CompanyRecord } f
 type AprCompany = Omit<CompanyRecord, 'id'> & { apr_raw?: unknown };
 type SyncResult = { company: CompanyRecord; inserted: boolean; updated: boolean };
 
-const DEFAULT_OPEN_DATA_URL='https://openapi.apr.gov.rs/api/opendata/companies';
+const DEFAULT_OPEN_DATA_URL='';
 let openDataCache:{at:number;companies:AprCompany[]}|null=null;
 let openDataPromise:Promise<AprCompany[]>|null=null;
 
@@ -121,11 +121,12 @@ function buildHeaders() {
 }
 function buildUrl(template: string, query: string, mode: 'search'|'detail') {
   const digits = digitsOnly(query);const registrationNumber = digits.length === 8 ? digits : '';const pib = digits.length === 9 ? digits : '';
-  let url = template.replaceAll('{query}', encodeURIComponent(query)).replaceAll('{{query}}', encodeURIComponent(query)).replaceAll('{registrationNumber}', encodeURIComponent(registrationNumber)).replaceAll('{mb}', encodeURIComponent(registrationNumber)).replaceAll('{pib}', encodeURIComponent(pib));
+  let url = template.replaceAll('{{query}}', encodeURIComponent(query)).replaceAll('{query}', encodeURIComponent(query)).replaceAll('{registrationNumber}', encodeURIComponent(registrationNumber)).replaceAll('{mb}', encodeURIComponent(registrationNumber)).replaceAll('{pib}', encodeURIComponent(pib));
   if (url === template) {const u = new URL(template);u.searchParams.set(process.env.APR_API_QUERY_PARAM || (mode === 'search' ? 'q' : digits.length === 9 ? 'pib' : 'mb'), query);url = u.toString();}
   return url;
 }
 async function fetchJson(url:string,timeoutMs:number,init:RequestInit={}){
+  if(!url)throw new Error('APR izvor nije podešen. PIB možete pretražiti kroz NBS ili uneti podatke ručno.');
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
     const response=await fetch(url,{...init,headers:{...buildHeaders(),...(init.headers as Record<string,string>||{})},cache:'no-store',signal:controller.signal});
@@ -167,7 +168,7 @@ function rankOpenData(companies:AprCompany[],query:string,limit:number){
 }
 
 export class APRSyncService {
-  static isConfigured() { return true; }
+  static isConfigured() { return hasContractedApi() || Boolean(openDataUrl()); }
   static sourceMode(){return hasContractedApi()?'contracted':'open-data-bulk';}
   static sourceUrl(){return hasContractedApi()?(process.env.APR_API_SEARCH_URL||process.env.APR_API_URL||'configured'):openDataUrl();}
 

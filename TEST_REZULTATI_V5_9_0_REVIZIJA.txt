@@ -1,0 +1,35 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> fiscalbox-app@5.9.0 test
+> node --test tests/regression.cjs
+
+billing-transaction test_failure
+✔ PIB: validan zvanični primer i kontrolna cifra (1.247828ms)
+✔ OAuth: spoljašnji i protokol-relativni URL odbijeni (0.247853ms)
+✔ Fiskalni QR: dozvoljeni domen, protokol, port i kredencijali (0.23889ms)
+✔ Nevalidan račun se ne označava kao validan (0.490569ms)
+✔ NBS sintetički odgovor: kolone, entiteti i deduplikacija računa (1.582553ms)
+✔ NBS: nepoznat format nije lažni rezultat ili poruka da firme nema (0.545791ms)
+✔ NBS: MB duži od 8 cifara se ne skraćuje (0.29211ms)
+✔ NBS: neslaganje identiteta se odbija (0.188063ms)
+✔ Poziv: izmenjivi kontakt i telefon nisu dokaz identiteta (0.303286ms)
+✔ SOAP odbija PIB drugog subjekta (4.090919ms)
+✔ NBS adapter bez ključa šalje tačan PIB, ima timeout i odbija redirect (16.502114ms)
+✔ NBS nedostupnost se ne prikazuje kao nepostojeća firma (12.942465ms)
+✔ PIB servis bez SOAP ključeva koristi besplatni adapter (26.991886ms)
+✔ Svež keš izbegava mrežni zahtev (19.62166ms)
+✔ Ručni zapis se proverava čak i ako ima nov datum (29.04096ms)
+✔ Login MASTER/MASTER ne kreira privilegovani nalog (6.498224ms)
+✔ Webhook: neuspeh transakcije vraća 503 radi ponovne isporuke (14.056697ms)
+✔ Nepoznat tekst o validaciji nije dokaz da je račun validan (0.141583ms)
+✔ Lokalizovani iznosi i prazna vrednost (0.98985ms)
+✔ SOAP bez PIB-a nije potvrđena kompanija (0.958213ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 483.837428
+{"files":141,"syntaxErrors":0,"typescript":"5.9.3"}

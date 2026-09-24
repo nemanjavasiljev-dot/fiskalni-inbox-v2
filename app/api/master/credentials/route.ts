@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
     if (!currentPassword) return NextResponse.json({ error:"Unesite trenutnu lozinku." }, { status:400 });
     if (!USERNAME_RE.test(nextUsername)) return NextResponse.json({ error:"Korisničko ime mora imati 3–40 znakova i može sadržati slova, brojeve, tačku, crticu i donju crtu." }, { status:400 });
-    if (nextPassword && nextPassword.length < 6) return NextResponse.json({ error:"Nova lozinka mora imati najmanje 6 znakova." }, { status:400 });
+    if (nextPassword && nextPassword.length < 12) return NextResponse.json({ error:"Nova lozinka mora imati najmanje 12 znakova." }, { status:400 });
 
     const { data: profile, error: profileReadError } = await guard.admin
       .from("profiles")

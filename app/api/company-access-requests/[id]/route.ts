@@ -18,7 +18,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   const allowed=profile?.global_role==='master_admin'||org?.owner_user_id===user.id;
   if(!allowed)return NextResponse.json({error:'Nemate pravo da odlučujete o ovom zahtevu.'},{status:403});
   if(decision==='approved'){
-    const {error:mErr}=await admin.from('organization_members').upsert({organization_id:req.organization_id,user_id:req.requester_user_id,role:'employee'},{onConflict:'organization_id,user_id'});
+    const {error:mErr}=await admin.from('organization_members').upsert({organization_id:req.organization_id,user_id:req.requester_user_id,role:'employee'},{onConflict:'organization_id,user_id',ignoreDuplicates:true});
     if(mErr)return NextResponse.json({error:mErr.message},{status:400});
     await admin.from('profiles').update({primary_company_id:req.company_id}).eq('user_id',req.requester_user_id);
   }

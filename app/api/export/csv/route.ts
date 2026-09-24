@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 
 function cell(v:unknown) {
-  const s = String(v ?? "");
+  const raw = String(v ?? "");
+  const s = /^[\s]*[=+@\-]/.test(raw) && typeof v !== "number" ? "'" + raw : raw;
   return `"${s.replaceAll('"','""')}"`;
 }
 

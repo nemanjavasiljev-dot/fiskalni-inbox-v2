@@ -1,9 +1,13 @@
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { hashInviteToken } from '@/lib/invite-token';
 import { emailBelongsToAccountingOrganization, resolveAccountingOrganization } from '@/lib/accountant-verification';
 
 export async function POST(request:Request){
+  const supabase=await createClient();
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user||!user.email_confirmed_at)return NextResponse.json({error:'Prijavite se potvrđenim nalogom knjigovođe da biste prihvatili poziv.'},{status:401});
   const body=await request.json().catch(()=>({}));
   const token=String(body.token||'');
   if(!token)return NextResponse.json({error:'Nedostaje verifikacioni token.'},{status:400});
@@ -20,10 +24,9 @@ export async function POST(request:Request){
     return NextResponse.json({error:'Knjigovodstvena firma sa ovim PIB-om još nema FiscalBox nalog.',code:'ACCOUNTANT_NOT_REGISTERED',register_url:'/register'},{status:409});
   }
 
-  const verified=await emailBelongsToAccountingOrganization(admin,accountingOrg,invite.email||'');
-  if(!verified.ok){
-    return NextResponse.json({error:'Email iz poziva nije povezan sa FiscalBox nalogom knjigovodstvene firme za navedeni PIB. Prijavite se ili ažurirajte kontakt email firme.',code:'EMAIL_MISMATCH'},{status:403});
-  }
+  const {data:member}=await admin.from('organization_members').select('role,accounting_access_role').eq('organization_id',accountingOrg.id).eq('user_id',user.id).maybeSingle();
+  if(!member || !(member.role==='owner'||(member.role==='employee'&&member.accounting_access_role==='admin')))return NextResponse.json({error:'Poziv može prihvatiti samo administrator pozvane agencije.'},{status:403});
+  const verified={acceptingUserId:user.id};
 
   const {data:clientOrg}=await admin.from('organizations').select('id,name,company_id').eq('id',invite.organization_id).maybeSingle();
   if(!clientOrg?.company_id)return NextResponse.json({error:'Klijent nije pravilno povezan sa registrom.'},{status:409});
@@ -43,7 +46,7 @@ export async function POST(request:Request){
 
   const accessUsers=Array.from(new Set([String(accountingOrg.owner_user_id||''),String(verified.acceptingUserId||'')].filter(Boolean)));
   for(const userId of accessUsers){
-    const {error}=await admin.from('organization_members').upsert({organization_id:clientOrg.id,user_id:userId,role:'accountant'},{onConflict:'organization_id,user_id'});
+    const {error}=await admin.from('organization_members').upsert({organization_id:clientOrg.id,user_id:userId,role:'accountant'},{onConflict:'organization_id,user_id',ignoreDuplicates:true});
     if(error)return NextResponse.json({error:error.message},{status:400});
   }
 

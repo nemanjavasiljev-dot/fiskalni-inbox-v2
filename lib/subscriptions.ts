@@ -39,6 +39,7 @@ async function lsFetch(path:string, init:RequestInit={}){
       Authorization:`Bearer ${apiKey}`,
       ...(init.headers||{})
     },
+    signal:AbortSignal.timeout(15000),
     cache:'no-store'
   });
   const text=await response.text();

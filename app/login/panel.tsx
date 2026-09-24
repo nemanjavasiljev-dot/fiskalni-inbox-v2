@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPanel() {
@@ -9,6 +9,8 @@ export default function LoginPanel() {
   const [error,setError] = useState("");
   const [busy,setBusy] = useState(false);
   const router = useRouter();
+  const [notice,setNotice]=useState("");
+  useEffect(()=>{if(new URLSearchParams(window.location.search).get("registered"))setNotice("Nalog je kreiran. Otvorite email i potvrdite adresu, pa se prijavite. Poziv knjigovođi možete poslati nakon prijave iz menija Više.");},[]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +35,7 @@ export default function LoginPanel() {
 
   return (
     <>
+      {notice&&<div className="home-message" role="status">{notice}</div>}
       <form onSubmit={submit}>
         <div className="field"><label>Korisničko ime ili email</label><input className="input" autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} required /></div>
         <div className="field"><label>Lozinka</label><input className="input" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></div>

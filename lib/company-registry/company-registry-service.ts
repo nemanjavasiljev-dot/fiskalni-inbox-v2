@@ -1,3 +1,6 @@
+import { normalizePib, isValidPib } from '@/lib/company-identifiers';
+export { normalizePib, isValidPib } from '@/lib/company-identifiers';
+import { resolvePibViaNbs } from '@/lib/nbs-company-resolver';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeCompanyName, publicCompany, type CompanyRecord } from '@/lib/company-registry';
 import {
@@ -10,19 +13,11 @@ import {
 
 export type LookupResult = {
   company: CompanyRecord;
-  source: 'CACHE' | 'NBS' | 'NBS+APR';
+  source: 'CACHE' | 'NBS' | 'NBS+APR' | 'NBS_PUBLIC';
   checkedAt: string | null;
   cached: boolean;
   warning?: string;
 };
-
-export function normalizePib(value: unknown) {
-  return String(value ?? '').replace(/\D/g, '').slice(0, 9);
-}
-
-export function isValidPib(value: unknown) {
-  return /^\d{9}$/.test(normalizePib(value));
-}
 
 function freshEnough(value: string | null | undefined) {
   if (!value) return false;
@@ -53,11 +48,11 @@ function inferRegistryKind(existing: any, legalForm: string | null, name: string
 
 export async function lookupCompanyByPib(pibInput: unknown): Promise<LookupResult> {
   const pib = normalizePib(pibInput);
-  if (!isValidPib(pib)) throw Object.assign(new Error('PIB mora imati tačno 9 cifara.'), { code: 'INVALID_PIB' });
+  if (!isValidPib(pib)) throw Object.assign(new Error('PIB mora imati 9 cifara i ispravnu kontrolnu cifru.'), { code: 'INVALID_PIB' });
 
   const admin = createAdminClient();
   const cached = await cachedByPib(pib);
-  if (cached && freshEnough(cached.registry_checked_at || cached.nbs_last_check)) {
+  if (cached && !cached.manual_review_required && freshEnough(cached.registry_checked_at || cached.nbs_last_check)) {
     return {
       company: publicCompany(cached),
       source: 'CACHE',
@@ -66,21 +61,24 @@ export async function lookupCompanyByPib(pibInput: unknown): Promise<LookupResul
     };
   }
 
-  if (!isNbsConfigured()) {
-    if (cached) {
-      return {
-        company: publicCompany(cached),
-        source: 'CACHE',
-        checkedAt: cached.registry_checked_at || cached.nbs_last_check || null,
-        cached: true,
-        warning: 'NBS provera trenutno nije konfigurisana; prikazani su poslednji sačuvani podaci.',
-      };
-    }
-    throw new NbsNotConfiguredError();
-  }
-
   try {
-    const nbs = await lookupNbsCompanyByPib(pib);
+    let source: 'NBS' | 'NBS_PUBLIC' = 'NBS';
+    let nbs;
+    if (isNbsConfigured()) {
+      nbs = await lookupNbsCompanyByPib(pib);
+    } else {
+      if (process.env.NBS_PUBLIC_LOOKUP_ENABLED === 'false') throw new NbsNotConfiguredError();
+      source = 'NBS_PUBLIC';
+      let matches;
+      try { matches = await resolvePibViaNbs(pib); }
+      catch { throw new NbsServiceError('NBS javna pretraga trenutno nije dostupna.'); }
+      const match = matches[0];
+      if (!match) throw new NbsNotFoundError();
+      nbs = {pib, registrationNumber:match.registration_number, name:match.name,
+        shortName:null, legalForm:null, status:null, address:match.address, city:match.city,
+        municipality:match.municipality, postalCode:null, activityCode:null,
+        activityName:match.activity_name, raw:match};
+    }
     let existing: any = cached;
 
     if (!existing && nbs.registrationNumber) {
@@ -93,26 +91,27 @@ export async function lookupCompanyByPib(pibInput: unknown): Promise<LookupResul
       existing = data || null;
     }
 
+    if (existing?.pib && existing.pib !== pib) throw new NbsServiceError('PIB i matični broj se ne poklapaju sa postojećim zapisom.');
     const now = new Date().toISOString();
     const matchedApr = Boolean(existing?.apr_source_id || existing?.apr_last_sync);
     const payload: any = {
       pib,
-      name: nonEmpty(existing?.name, nbs.name) || nbs.name || `PIB ${pib}`,
-      normalized_name: normalizeCompanyName(nonEmpty(existing?.name, nbs.name) || nbs.name || `PIB ${pib}`),
-      registration_number: nonEmpty(existing?.registration_number, nbs.registrationNumber),
-      short_name: nonEmpty(existing?.short_name, nbs.shortName),
+      name: nonEmpty(nbs.name, existing?.name) || nbs.name || `PIB ${pib}`,
+      normalized_name: normalizeCompanyName(nonEmpty(nbs.name, existing?.name) || nbs.name || `PIB ${pib}`),
+      registration_number: nonEmpty(nbs.registrationNumber, existing?.registration_number),
+      short_name: nonEmpty(nbs.shortName, existing?.short_name),
       legal_form: nonEmpty(existing?.legal_form, nbs.legalForm),
       registry_status: nonEmpty(existing?.registry_status, nbs.status),
-      address: nonEmpty(existing?.address, nbs.address),
-      city: nonEmpty(existing?.city, nbs.city),
-      municipality: nonEmpty(existing?.municipality, nbs.municipality),
+      address: nonEmpty(nbs.address, existing?.address),
+      city: nonEmpty(nbs.city, existing?.city),
+      municipality: nonEmpty(nbs.municipality, existing?.municipality),
       postal_code: nonEmpty(existing?.postal_code, nbs.postalCode),
       activity_code: nonEmpty(existing?.activity_code, nbs.activityCode),
       activity_name: nonEmpty(existing?.activity_name, nbs.activityName),
       nbs_raw: nbs.raw,
       nbs_last_check: now,
       registry_checked_at: now,
-      registry_source: matchedApr ? 'NBS+APR' : 'NBS',
+      registry_source: source === 'NBS_PUBLIC' ? source : matchedApr ? 'NBS+APR' : 'NBS',
       source_status: matchedApr ? 'nbs_apr' : 'nbs',
       registry_kind: inferRegistryKind(existing, nbs.legalForm, nbs.name),
       manual_review_required: false,
@@ -132,12 +131,12 @@ export async function lookupCompanyByPib(pibInput: unknown): Promise<LookupResul
 
     return {
       company: publicCompany(saved),
-      source: matchedApr ? 'NBS+APR' : 'NBS',
+      source: source === 'NBS_PUBLIC' ? source : matchedApr ? 'NBS+APR' : 'NBS',
       checkedAt: now,
       cached: false,
     };
   } catch (error) {
-    if (cached && (error instanceof NbsServiceError)) {
+    if (cached && (error instanceof NbsServiceError || error instanceof NbsNotConfiguredError)) {
       return {
         company: publicCompany(cached),
         source: 'CACHE',

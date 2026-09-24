@@ -3,7 +3,7 @@ const ALLOWED_HOSTS = ["suf.purs.gov.rs", "purs.gov.rs"];
 export function isAllowedFiscalUrl(raw: string) {
   try {
     const u = new URL(raw);
-    if (u.protocol !== "https:") return false;
+    if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443")) return false;
     return ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith("." + h));
   } catch {
     return false;
@@ -43,8 +43,13 @@ function pickArray(entries: [string, unknown][], keys: string[]) {
 }
 
 function num(v: unknown) {
-  if (v == null) return null;
-  const n = Number(String(v).replace(/\s/g, "").replace(",", "."));
+  if (v == null || String(v).trim() === '') return null;
+  let value = String(v).replace(/\s/g, '');
+  if (value.includes(',') && value.includes('.')) {
+    value = value.lastIndexOf(',') > value.lastIndexOf('.')
+      ? value.replace(/\./g, '').replace(',', '.') : value.replace(/,/g, '');
+  } else value = value.replace(',', '.');
+  const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -85,8 +90,8 @@ export function verificationStatus(rawStatus: unknown) {
   const s = String(rawStatus ?? "").trim();
   if (!s) return { text:null, valid:null as boolean|null };
   const n = s.toLocaleLowerCase("sr");
-  if (/(invalid|nevaže|nevaž|neisprav|није.*валид|неваже|неисправ|invalidan)/i.test(n)) return {text:s,valid:false};
-  if (/(valid|važe|važeći|isprav|валид|важе|исправ)/i.test(n)) return {text:s,valid:true};
+  if (/(not.*valid|not.*verified|nije.*(?:valid|važe|isprav)|nevalid|invalid|nevaže|nevaž|neisprav|није.*(?:валид|важе|исправ)|невалид|неваже|неисправ)/i.test(n)) return {text:s,valid:false};
+  if (/^(?:valid|validan|validna|validno|važeći|važeća|važeće|ispravan|ispravna|ispravno|валидно|валидан|валидна|важећи|важећа|исправан|исправна|invoice is valid|račun je validan)[.!]?$/.test(n)) return {text:s,valid:true};
   return {text:s,valid:null as boolean|null};
 }
 

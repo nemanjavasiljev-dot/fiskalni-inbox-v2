@@ -4,7 +4,7 @@ import { sendAccountantInvite } from '@/lib/mailer';
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function normalizePib(value:any){
-  return String(value||'').replace(/\D/g,'').slice(0,9);
+  return String(value||'').trim().replace(/\s/g,'');
 }
 
 export function normalizeEmail(value:any){

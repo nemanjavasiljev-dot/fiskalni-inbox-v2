@@ -3,6 +3,8 @@ import https from 'node:https';
 const APR_URL =
   process.env.APR_OPEN_DATA_URL ||
   'https://openapi.apr.gov.rs/api/opendata/companies';
+// Company Open Data endpoint je već potvrđen u postojećem FiscalBox sync-u.
+// Za preduzetnike i dalje je obavezan zaseban zvanični feed/API URL.
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||

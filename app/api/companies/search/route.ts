@@ -1,3 +1,4 @@
+import { lookupCompanyByPib, isValidPib } from '@/lib/company-registry/company-registry-service';
 import { NextResponse } from 'next/server';
 import {
   checkSearchRateLimit,
@@ -33,6 +34,11 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (/^\d{9}$/.test(q)) {
+      if (!isValidPib(q)) return NextResponse.json({error:'Neispravan PIB.'},{status:400});
+      const result = await lookupCompanyByPib(q);
+      return NextResponse.json({results:[result.company],warning:result.warning||'',source:result.source});
+    }
     const results = await searchLocalCompanies(q, 15);
     let warning = '';
 
@@ -44,7 +50,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       results,
-      apr_configured: true,
+      apr_configured: Boolean(results.length),
       apr_source: 'open-data-bulk',
       warning,
     });

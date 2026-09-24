@@ -42,7 +42,7 @@ async function sendEmail(opts:{to:string;subject:string;html:string;attachments?
   const from=process.env.APP_EMAIL_FROM;
   if(!key||!from||!opts.to) return {sent:false,configured:false};
   const response=await fetch('https://api.resend.com/emails',{
-    method:'POST',
+    method:'POST',signal:AbortSignal.timeout(12000),
     headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
     body:JSON.stringify({from,to:[opts.to],subject:opts.subject,html:opts.html,attachments:opts.attachments})
   });

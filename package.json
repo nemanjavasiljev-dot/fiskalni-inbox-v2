@@ -1,34 +1,37 @@
 {
   "name": "fiscalbox-app",
-  "version": "5.8.9",
+  "version": "5.9.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
     "test:apr-smoke": "node tests/apr-company-search-smoke.mjs",
-    "sync:apr": "node scripts/apr-sync.mjs"
+    "sync:apr": "node scripts/apr-sync.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/regression.cjs",
+    "check:syntax": "node scripts/check-syntax.cjs",
+    "test:registry-live": "node tests/registry-live.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.0",
+    "@zxing/browser": "^0.1.5",
     "jsqr": "^1.4.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "next": "^15.5.0",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "web-push": "^3.6.7",
-    "@zxing/browser": "^0.1.5",
-    "qrcode": "^1.5.4",
-    "jszip": "^3.10.1"
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0",
     "@types/web-push": "^3.6.4",
-    "@types/qrcode": "^1.5.5"
+    "typescript": "^5.7.0"
   }
 }

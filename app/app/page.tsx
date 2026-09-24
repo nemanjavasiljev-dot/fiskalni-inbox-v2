@@ -8,17 +8,14 @@ function normEmail(v:any){return String(v||'').trim().toLowerCase();}
 function normPhone(v:any){let d=String(v||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('0'))d=`381${d.slice(1)}`;if(d&&!d.startsWith('381')&&d.length<=10)d=`381${d}`;return d?`+${d}`:'';}
 async function loadIncomingConnections(admin:any,targetKind:'company'|'accounting',org:any,userEmail:string){
   if(!org)return [];
-  const {data:rows}=await admin.from('connection_requests').select('*').eq('target_kind',targetKind).eq('status','pending').order('created_at',{ascending:false}).limit(300);
+  if(org.role && !(org.role==='owner'||org.accounting_access_role==='admin'))return [];
   const orgId=String(org.organization_id||org.id||'');
-  const emailCandidates=new Set([normEmail(userEmail),normEmail(org.contact_email)].filter(Boolean));
-  const phone=normPhone(org.contact_phone);
-  const matched=(rows||[]).filter((r:any)=>{
-    if(r.expires_at&&new Date(r.expires_at).getTime()<Date.now())return false;
-    if(r.target_organization_id&&String(r.target_organization_id)===orgId)return true;
-    if(r.channel==='email'&&emailCandidates.has(normEmail(r.recipient_email)))return true;
-    if(r.channel==='sms'&&phone&&phone===normPhone(r.recipient_phone))return true;
-    return false;
-  });
+  const base=()=>admin.from('connection_requests').select('*').eq('target_kind',targetKind).eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(100);
+  const [direct,byEmail]=await Promise.all([
+    base().eq('target_organization_id',orgId),
+    base().is('target_organization_id',null).eq('channel','email').eq('recipient_email',normEmail(userEmail))
+  ]);
+  const matched=[...(direct.data||[]),...(byEmail.data||[])];
   const senderIds=Array.from(new Set(matched.map((r:any)=>String(r.sender_organization_id)).filter(Boolean)));
   const {data:senders}=senderIds.length?await admin.from('organizations').select('id,name,pib,organization_type').in('id',senderIds):{data:[] as any[]};
   const senderMap=new Map((senders||[]).map((o:any)=>[String(o.id),o]));

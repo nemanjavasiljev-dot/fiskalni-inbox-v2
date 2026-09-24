@@ -14,6 +14,9 @@ export async function POST(request: Request) {
   if (!organizationId || !qrUrl) return NextResponse.json({error:"Nedostaju podaci."},{status:400});
   if (!isAllowedFiscalUrl(qrUrl)) return NextResponse.json({error:"QR ne vodi na dozvoljeni domen Poreske uprave."},{status:400});
 
+  const {data:allowed,error:accessError}=await supabase.rpc('can_manage_org_documents',{org:organizationId});
+  if(accessError||!allowed)return NextResponse.json({error:'Nemate pravo dodavanja računa za ovu firmu.'},{status:403});
+
   const { data: existing } = await supabase.from("receipts").select("*").eq("organization_id",organizationId).eq("qr_url",qrUrl).maybeSingle();
   if (existing) return NextResponse.json({duplicate:true,id:existing.id,receipt:existing});
 
@@ -21,7 +24,7 @@ export async function POST(request: Request) {
   let normalized:any = {};
   let status = "provera_neuspela";
   try {
-    const vr = await fetch(qrUrl,{headers:{Accept:"application/json"},cache:"no-store",signal:AbortSignal.timeout(12000)});
+    const vr = await fetch(qrUrl,{redirect:"error",headers:{Accept:"application/json"},cache:"no-store",signal:AbortSignal.timeout(12000)});
     const text = await vr.text();
     if (!vr.ok) throw new Error(`HTTP ${vr.status}`);
     raw = JSON.parse(text);
@@ -51,6 +54,10 @@ export async function POST(request: Request) {
     raw_json:raw
   }).select("*").single();
 
-  if (error) return NextResponse.json({error:error.message},{status:400});
+  if(error?.code==='23505'){
+    const {data:duplicate}=await supabase.from('receipts').select('*').eq('organization_id',organizationId).eq('qr_url',qrUrl).maybeSingle();
+    if(duplicate)return NextResponse.json({duplicate:true,id:duplicate.id,receipt:duplicate});
+  }
+  if (error) return NextResponse.json({error:'Račun nije sačuvan. Pokušajte ponovo.'},{status:400});
   return NextResponse.json({duplicate:false,id:data.id,status,receipt:data,classification});
 }
