@@ -310,6 +310,7 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .windows-installer-box{display:grid;gap:8px;margin:16px 0 18px;padding:15px;border:1px solid #cfe1d8;background:#f2faf6;border-radius:14px}.windows-installer-box .btn{width:max-content;max-width:100%}.windows-installer-box small{font-size:9px;color:var(--muted);line-height:1.5}.desktop-install-separator{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;margin:18px 0}.desktop-install-separator:before,.desktop-install-separator:after{content:"";height:1px;background:var(--line);flex:1}
 @media(max-width:650px){.database-updated-toast{right:12px;left:12px;bottom:92px;min-width:0}.mobile-install-card{padding:20px;border-radius:20px}.mobile-install-card h2{font-size:21px}.windows-installer-box .btn{width:100%;justify-content:center}}
 
+
 /* FiscalBox V5.9.2.1 — SUPER ADMIN responsive layout */
 .master46-sidebar-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .master46-mobile-menu-toggle,.master46-mobile-topbar,.master46-mobile-backdrop{display:none}
@@ -375,3 +376,4 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
   .master46-main button,.master46-main .btn,.master46-sidebar button{min-height:42px}
   .master46-main input,.master46-main select,.master46-main textarea{font-size:16px}
 }
+
