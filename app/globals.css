@@ -294,3 +294,11 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
 .accountant-sent-note{color:#0d6b4a!important;font-weight:800}.accountant-sent-message{color:#4f5d58!important}.accountant-file-badge{background:#e9f5ef;color:#0d6b4a}
 .assign-client-modal{max-width:520px}
 .assign-client-modal .field{margin-top:18px}
+
+/* V5.9.1.7 — AI / konačna odluka za ulazni PDV */
+.vat-decision-badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:900;white-space:nowrap;border:1px solid transparent}
+.vat-decision-badge.final-yes{background:#e9f8ef;color:#0b6a42;border-color:#a7dbbb}
+.vat-decision-badge.final-no{background:#fff0f0;color:#9b2d2d;border-color:#efb7b7}
+.vat-decision-badge.ai-yes{background:#eff8f3;color:#277354;border-color:#c3dfcf}
+.vat-decision-badge.ai-no{background:#fff6f0;color:#98502e;border-color:#efceb9}
+.vat-decision-badge.ai-review,.vat-decision-badge.pending{background:#fff8df;color:#865e10;border-color:#ead28b}

@@ -34,7 +34,7 @@ export default function NotificationRuntime(){
 
     if(showNative&&typeof Notification!=="undefined"&&Notification.permission==="granted"&&"serviceWorker" in navigator){
       navigator.serviceWorker.ready.then(reg=>reg.showNotification(next.title,{
-        body:next.body,icon:"/icons/icon-192.png",badge:"/icons/icon-192.png",tag:next.tag||eventKey||"fiscalbox",renotify:true,data:{url:next.url,eventKey}
+        body:next.body,icon:"/icons/icon-192.png",badge:"/icons/icon-192.png",tag:next.tag||eventKey||"fiscalbox",data:{url:next.url,eventKey}
       })).catch(()=>{});
     }
   },[]);

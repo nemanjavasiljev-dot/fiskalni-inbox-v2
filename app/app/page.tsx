@@ -77,7 +77,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     const orgIds = accountantOrgs.map((o:any)=>o.organization_id);
     if (orgIds.length > 0) {
       const [{data:allReceipts},{data:allDocuments},{data:receiptStatuses},{data:documentStatuses}] = await Promise.all([
-        supabase.from("receipts").select("id,organization_id,merchant_name,merchant_pib,invoice_number,sdc_time,total_amount,total_tax,category,sent_to_accountant_at,created_at").in("organization_id",orgIds).not("sent_to_accountant_at","is",null).order("sent_to_accountant_at",{ascending:false}).limit(2000),
+        supabase.from("receipts").select("id,organization_id,merchant_name,merchant_pib,invoice_number,sdc_time,total_amount,total_tax,category,sent_to_accountant_at,created_at,vat_deductible,vat_decided_at,ai_vat_recommendation,ai_vat_confidence").in("organization_id",orgIds).not("sent_to_accountant_at","is",null).order("sent_to_accountant_at",{ascending:false}).limit(2000),
         supabase.from("documents").select("id,organization_id,file_name,mime_type,size_bytes,source,status,sent_at,created_at").in("organization_id",orgIds).eq("status","sent").order("sent_at",{ascending:false}).limit(2000),
         supabase.from("accountant_receipt_status").select("*").eq("accountant_user_id",user.id),
         supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id)

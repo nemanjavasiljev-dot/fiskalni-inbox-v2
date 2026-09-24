@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizePib, normalizeVerification } from "@/lib/fiscal";
 import PrintButton from "./print-button";
+import VatDecisionPanel from "@/components/VatDecisionPanel";
+import { ensureVatAiAnalysis } from "@/lib/vat-ai";
 import { money, dateTime } from "@/lib/format";
 
 function objectEntriesDeep(raw: unknown): [string, unknown][] {
@@ -54,7 +56,7 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
 
   const admin=createAdminClient();
   const {data:org}=await admin.from("organizations")
-    .select("id,name,pib,registration_number,address,municipality,company_id")
+    .select("id,name,pib,registration_number,address,municipality,company_id,activity_code,activity_name")
     .eq("id",r.organization_id).maybeSingle();
 
   const normalized=normalizeVerification(r.raw_json || {});
@@ -92,6 +94,14 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
   const buyerMb=buyerOrg?.registration_number || buyerCompany?.registration_number || null;
   const registrySource=buyerCompany?.registry_source || (buyerOrg ? "FiscalBox profil / PIB kupca" : null);
   const registryChecked=buyerCompany?.registry_checked_at || buyerCompany?.nbs_last_check || null;
+
+  const {data:accountantMembership}=await admin.from("organization_members")
+    .select("role").eq("organization_id",r.organization_id).eq("user_id",user.id).maybeSingle();
+  const isAccountantReview=accountantMembership?.role==="accountant";
+  let vatAi:any=null;
+  if(isAccountantReview){
+    vatAi=await ensureVatAiAnalysis(admin,r,org);
+  }
 
   let qrDataUrl="";
   try{
@@ -139,6 +149,14 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
       </div>
       <div className="verify-stamp">{verified?"VERIFIKOVAN":"PROVERITI"}</div>
     </div>
+
+    {isAccountantReview && vatAi ? <VatDecisionPanel
+      receiptId={String(r.id)}
+      recommendation={vatAi.recommendation}
+      confidence={Number(vatAi.confidence||0)}
+      reason={String(vatAi.reason||"")}
+      initialDecision={typeof r.vat_deductible==="boolean"?r.vat_deductible:null}
+    /> : null}
 
     <section className="section grid2">
       <div className="party">
