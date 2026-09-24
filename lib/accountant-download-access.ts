@@ -42,7 +42,11 @@ export async function getAuthorizedAccountantClientIds(
       .not('client_organization_id', 'is', null);
     if (relationError) throw relationError;
 
-    const relationIds = new Set((relations || []).map((r: any) => String(r.client_organization_id)).filter(Boolean));
+    const relationIds = new Set<string>(
+      (relations || [])
+        .map((r: any) => String(r.client_organization_id || ''))
+        .filter((id: string) => Boolean(id))
+    );
     if (!relationIds.size) continue;
 
     const isAdmin = membership.role === 'owner' ||
