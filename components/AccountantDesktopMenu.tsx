@@ -37,9 +37,14 @@ export default function AccountantDesktopMenu({
   return <>
     {mobileOpen&&<button type="button" className="accountant-mobile-backdrop" aria-label="Zatvori meni" onClick={()=>setMobileOpen(false)}/>}
     <div className="accountant-mobile-topbar">
-      <button type="button" className="accountant-mobile-menu-inline" onClick={()=>setMobileOpen(true)}><Menu size={20}/><span>Meni</span></button>
-      <a href="/app" className="accountant-mobile-brand"><span className="accountant-mobile-logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a>
-      <CommunicationQuickActions compact className="accountant-mobile-communications"/>
+      <div className="accountant-mobile-topline">
+        <a href="/app" className="accountant-mobile-brand"><span className="accountant-mobile-logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a>
+        <CommunicationQuickActions className="accountant-mobile-communications"/>
+      </div>
+      <button type="button" className="accountant-mobile-account-card" onClick={()=>setMobileOpen(true)} aria-label="Otvori meni knjigovođe">
+        <span className="accountant-mobile-account-avatar">{String(username||'K').slice(0,1).toUpperCase()}</span>
+        <span className="accountant-mobile-account-copy"><small>{isAdmin?"ADMIN KNJIGOVOĐA":"KNJIGOVOĐA"}</small><b>{username||"FiscalBox KNJIGO"}</b></span>
+        <Menu size={20}/></button>
     </div>
 
     <aside className={`accountant-desktop-menu accountant-super-menu ${mobileOpen?"mobile-open":""}`}>

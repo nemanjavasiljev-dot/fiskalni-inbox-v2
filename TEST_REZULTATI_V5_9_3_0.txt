@@ -1,0 +1,7 @@
+FiscalBox V5.9.3.0
+Syntax check: PASS
+TS/TSX files: 174
+Syntax errors: 0
+Full next build: NOT RUN (node_modules nisu prisutni u radnom okruženju)
+Regression: NOT RUN (web-push modul nije instaliran lokalno)
+New SQL migration: NONE
