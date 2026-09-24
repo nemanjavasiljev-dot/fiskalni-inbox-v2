@@ -1,0 +1,162 @@
+FiscalBox V5.9.1 MERGE - test rezultat
+Datum: 2026-09-24
+
+TAP version 13
+# billing-transaction test_failure
+# Subtest: PIB: validan zvanični primer i kontrolna cifra
+ok 1 - PIB: validan zvanični primer i kontrolna cifra
+  ---
+  duration_ms: 1.103576
+  type: 'test'
+  ...
+# Subtest: OAuth: spoljašnji i protokol-relativni URL odbijeni
+ok 2 - OAuth: spoljašnji i protokol-relativni URL odbijeni
+  ---
+  duration_ms: 0.263909
+  type: 'test'
+  ...
+# Subtest: Fiskalni QR: dozvoljeni domen, protokol, port i kredencijali
+ok 3 - Fiskalni QR: dozvoljeni domen, protokol, port i kredencijali
+  ---
+  duration_ms: 0.208437
+  type: 'test'
+  ...
+# Subtest: Nevalidan račun se ne označava kao validan
+ok 4 - Nevalidan račun se ne označava kao validan
+  ---
+  duration_ms: 1.297982
+  type: 'test'
+  ...
+# Subtest: NBS sintetički odgovor: kolone, entiteti i deduplikacija računa
+ok 5 - NBS sintetički odgovor: kolone, entiteti i deduplikacija računa
+  ---
+  duration_ms: 2.33458
+  type: 'test'
+  ...
+# Subtest: NBS: nepoznat format nije lažni rezultat ili poruka da firme nema
+ok 6 - NBS: nepoznat format nije lažni rezultat ili poruka da firme nema
+  ---
+  duration_ms: 0.676147
+  type: 'test'
+  ...
+# Subtest: NBS: MB duži od 8 cifara se ne skraćuje
+ok 7 - NBS: MB duži od 8 cifara se ne skraćuje
+  ---
+  duration_ms: 0.223529
+  type: 'test'
+  ...
+# Subtest: NBS: neslaganje identiteta se odbija
+ok 8 - NBS: neslaganje identiteta se odbija
+  ---
+  duration_ms: 0.176029
+  type: 'test'
+  ...
+# Subtest: Poziv: izmenjivi kontakt i telefon nisu dokaz identiteta
+ok 9 - Poziv: izmenjivi kontakt i telefon nisu dokaz identiteta
+  ---
+  duration_ms: 0.31216
+  type: 'test'
+  ...
+# Subtest: SOAP odbija PIB drugog subjekta
+ok 10 - SOAP odbija PIB drugog subjekta
+  ---
+  duration_ms: 6.580116
+  type: 'test'
+  ...
+# Subtest: NBS adapter bez ključa šalje tačan PIB, ima timeout i odbija redirect
+ok 11 - NBS adapter bez ključa šalje tačan PIB, ima timeout i odbija redirect
+  ---
+  duration_ms: 21.777669
+  type: 'test'
+  ...
+# Subtest: NBS nedostupnost se ne prikazuje kao nepostojeća firma
+ok 12 - NBS nedostupnost se ne prikazuje kao nepostojeća firma
+  ---
+  duration_ms: 13.142435
+  type: 'test'
+  ...
+# Subtest: PIB servis bez SOAP ključeva koristi besplatni adapter
+ok 13 - PIB servis bez SOAP ključeva koristi besplatni adapter
+  ---
+  duration_ms: 28.867186
+  type: 'test'
+  ...
+# Subtest: Svež keš izbegava mrežni zahtev
+ok 14 - Svež keš izbegava mrežni zahtev
+  ---
+  duration_ms: 25.770112
+  type: 'test'
+  ...
+# Subtest: Ručni zapis se proverava čak i ako ima nov datum
+ok 15 - Ručni zapis se proverava čak i ako ima nov datum
+  ---
+  duration_ms: 16.731163
+  type: 'test'
+  ...
+# Subtest: Login MASTER/MASTER ne kreira privilegovani nalog
+ok 16 - Login MASTER/MASTER ne kreira privilegovani nalog
+  ---
+  duration_ms: 8.707189
+  type: 'test'
+  ...
+# Subtest: Webhook: neuspeh transakcije vraća 503 radi ponovne isporuke
+ok 17 - Webhook: neuspeh transakcije vraća 503 radi ponovne isporuke
+  ---
+  duration_ms: 12.64992
+  type: 'test'
+  ...
+# Subtest: Nepoznat tekst o validaciji nije dokaz da je račun validan
+ok 18 - Nepoznat tekst o validaciji nije dokaz da je račun validan
+  ---
+  duration_ms: 0.167366
+  type: 'test'
+  ...
+# Subtest: Lokalizovani iznosi i prazna vrednost
+ok 19 - Lokalizovani iznosi i prazna vrednost
+  ---
+  duration_ms: 0.568117
+  type: 'test'
+  ...
+# Subtest: SOAP bez PIB-a nije potvrđena kompanija
+ok 20 - SOAP bez PIB-a nije potvrđena kompanija
+  ---
+  duration_ms: 0.809934
+  type: 'test'
+  ...
+# Subtest: MERGE 5.9.1: bank/IPS i ZIP funkcije su zadržane
+ok 21 - MERGE 5.9.1: bank/IPS i ZIP funkcije su zadržane
+  ---
+  duration_ms: 0.207866
+  type: 'test'
+  ...
+# Subtest: MERGE 5.9.1: bankarsko rasknjižavanje koristi atomsku RPC funkciju
+ok 22 - MERGE 5.9.1: bankarsko rasknjižavanje koristi atomsku RPC funkciju
+  ---
+  duration_ms: 0.266222
+  type: 'test'
+  ...
+# Subtest: MERGE 5.9.1: masovno preuzimanje ponovo proverava aktivnu knjigovodstvenu vezu
+ok 23 - MERGE 5.9.1: masovno preuzimanje ponovo proverava aktivnu knjigovodstvenu vezu
+  ---
+  duration_ms: 0.131453
+  type: 'test'
+  ...
+# Subtest: MERGE 5.9.1: migracije posle starog SQL 017 nemaju koliziju
+ok 24 - MERGE 5.9.1: migracije posle starog SQL 017 nemaju koliziju
+  ---
+  duration_ms: 6.50852
+  type: 'test'
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 24
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 498.656999
+
+{"files":150,"syntaxErrors":0,"typescript":"5.8.3"}
+
+NAPOMENA: npm install / puni Next.js build nije zavrsen u ovom okruzenju jer je npm install presao vremenski limit.

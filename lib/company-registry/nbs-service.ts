@@ -89,12 +89,13 @@ function normalizeDigits(value: string | null, max = 20) {
   return digits || null;
 }
 
-function parseNbsCompany(xml: string, requestedPib: string): NbsCompany {
+export function parseNbsCompany(xml: string, requestedPib: string): NbsCompany {
   // The XML service returns an XML string inside the SOAP result. Field names
   // have changed across NBS schemas, so aliases are intentionally tolerant.
   const pib = normalizeDigits(findTag(xml, [
     'TaxIdentificationNumber', 'taxIdentificationNumber', 'PIB', 'Pib', 'TaxId', 'TaxNumber'
-  ]), 9) || requestedPib;
+  ]), 20);
+  if (!pib || !/^\d{9}$/.test(pib)) throw new NbsServiceError('NBS odgovor nema ispravan PIB.');
   const registrationNumber = normalizeDigits(findTag(xml, [
     'NationalIdentificationNumber', 'nationalIdentificationNumber', 'RegistrationNumber',
     'CompanyRegistrationNumber', 'MaticniBroj', 'MaticniBrojFirme', 'MB'
@@ -110,6 +111,7 @@ function parseNbsCompany(xml: string, requestedPib: string): NbsCompany {
   const activityCode = findTag(xml, ['ActivityCode', 'MainActivityCode', 'SifraDelatnosti']);
   const activityName = findTag(xml, ['ActivityName', 'MainActivityName', 'NazivDelatnosti']);
 
+  if (pib !== requestedPib) throw new NbsServiceError('NBS je vratio drugi PIB.');
   if (!registrationNumber && !name) throw new NbsNotFoundError();
 
   return {

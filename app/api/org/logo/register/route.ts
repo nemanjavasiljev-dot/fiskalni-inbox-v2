@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   if (!membership || membership.role === "accountant") return NextResponse.json({ error: "Nemate pravo menjanja logoa." }, { status: 403 });
 
   const { data: oldOrg } = await supabase.from("organizations").select("logo_path").eq("id", org).maybeSingle();
-  const { error } = await supabase.from("organizations").update({ logo_path: logoPath }).eq("id", org);
+  const { error } = await createAdminClient().from("organizations").update({ logo_path: logoPath }).eq("id", org);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   const oldPath = String(oldOrg?.logo_path || "");

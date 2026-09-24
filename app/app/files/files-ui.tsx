@@ -30,11 +30,11 @@ type PendingFile = { file:File; name:string; rename:boolean };
 type PendingAdd = { source:"camera"|"upload"; items:PendingFile[] };
 
 
-export default function FilesWorkspace({ profile, organizations, activeOrg, initialDocuments }: any) {
+export default function FilesWorkspace({ profile, organizations, activeOrg, initialDocuments, initialBillingDocuments = [], initialWarrantyReceipts = [], initialTab }: any) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"inbox" | "sent">(activeOrg.role === "accountant" ? "sent" : "inbox");
+  const [tab, setTab] = useState<"inbox" | "sent" | "archive" | "billing" | "warranties">(activeOrg.role === "accountant" ? "sent" : (["inbox","sent","archive","billing","warranties"].includes(String(initialTab)) ? initialTab : "inbox"));
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -49,11 +49,15 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    if(tab === "billing" || tab === "warranties") return [];
     return documents.filter((d: any) => {
-      if (!isAccountant && d.status !== tab) return false;
+      if (!isAccountant) {
+        if (tab === "archive") { if (!d.archived_at) return false; }
+        else if (d.status !== tab) return false;
+      }
       if (isAccountant && d.status !== "sent") return false;
       if (!q) return true;
-      return [d.file_name, d.mime_type, d.source].some((v: any) => String(v || "").toLowerCase().includes(q));
+      return [d.file_name, d.mime_type, d.source, d.accountant_message].some((v: any) => String(v || "").toLowerCase().includes(q));
     });
   }, [documents, query, tab, isAccountant]);
 
@@ -143,21 +147,35 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
 
       <div className="card files-panel">
         <div className="files-toolbar">
-          <div className="files-tabs">{!isAccountant && <button className={tab==="inbox"?"active":""} onClick={()=>setTab("inbox")}>Fajlovi</button>}<button className={tab==="sent"?"active":""} onClick={()=>setTab("sent")}>{isAccountant ? "Primljeni dokumenti" : "Poslati dokumenti"}</button></div>
+          <div className="files-tabs">{!isAccountant && <button className={tab==="inbox"?"active":""} onClick={()=>setTab("inbox")}>Fajlovi</button>}<button className={tab==="sent"?"active":""} onClick={()=>setTab("sent")}>{isAccountant ? "Primljeni dokumenti" : "Poslati dokumenti"}</button>{!isAccountant&&<><button className={tab==="archive"?"active":""} onClick={()=>setTab("archive")}>Arhiva</button><button className={tab==="billing"?"active":""} onClick={()=>setTab("billing")}>Računi / predračuni</button><button className={tab==="warranties"?"active":""} onClick={()=>setTab("warranties")}>Garancije</button></>}</div>
           <div className="files-search"><Search size={18}/><input ref={searchInput} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pretraži fajlove…"/></div>
         </div>
 
         {!isAccountant && tab==="inbox" && <div className="send-bar"><div><span>{selected.length ? `${selected.length} označeno` : "Označite dokumente koje šaljete knjigovođi"}</span></div><button className="btn btn-primary" disabled={!selected.length||busy} onClick={sendSelected}><Send size={17}/> Pošalji knjigovođi</button></div>}
 
-        <div className="files-list">
-          {filtered.map((d:any)=><div className="file-row" key={d.id}>
-            {!isAccountant && tab==="inbox" && <label className="file-check"><input type="checkbox" checked={selected.includes(d.id)} onChange={()=>toggle(d.id)}/><span/></label>}
-            <div className="file-type-icon">{iconFor(d)}</div>
-            <div className="file-main"><b>{d.file_name}</b><span>{bytes(Number(d.size_bytes||0))} · {d.source==="scan"?"Skenirano":d.source==="camera"?"Fotografija":"Fajl"} · {dt(d.created_at)}</span>{d.sent_at&&<small>Poslato: {dt(d.sent_at)}</small>}</div>
-            <div className="file-status"><span className={`badge ${d.status==="sent"?"":"warn"}`}>{d.status==="sent"?"POSLATO":"SPREMNO"}</span><a className="btn file-download" href={`/api/documents/${d.id}/download`}>Preuzmi</a></div>
+        {tab==="billing"&&!isAccountant ? <div className="files-list">
+          {initialBillingDocuments.map((b:any)=><div className="file-row" key={b.id}>
+            <div className="file-type-icon"><FileText size={20}/></div>
+            <div className="file-main"><b>{b.document_type==="proforma"?"Predračun":"Račun"} {b.invoice_number}</b><span>{new Intl.DateTimeFormat("sr-RS",{dateStyle:"medium"}).format(new Date(b.issued_at||b.created_at))} · {String(b.plan||"").toUpperCase()} · {new Intl.NumberFormat("sr-RS",{style:"currency",currency:String(b.currency||"RSD")}).format(Number(b.total_amount||0))}</span><small>{b.status==="paid"?"Plaćeno":b.status==="unpaid"?"Neplaćeno":String(b.status||"").toUpperCase()}</small></div>
+            <div className="file-status"><span className={`badge ${b.status==="paid"?"":"warn"}`}>{b.status==="paid"?"PLAĆENO":"NEPLAĆENO"}</span><a className="btn file-download" href={`/api/billing/invoices/${b.id}/pdf`} target="_blank">PDF</a></div>
           </div>)}
-          {filtered.length===0 && <div className="files-empty"><FolderOpen size={34}/><b>Nema dokumenata</b><span>{query?"Nema rezultata za ovu pretragu.":isAccountant?"Klijent još nije poslao dokumente.":tab==="sent"?"Još nema poslatih dokumenata.":"Dodajte prvi dokument iznad."}</span></div>}
-        </div>
+          {initialBillingDocuments.length===0&&<div className="files-empty"><FolderOpen size={34}/><b>Nema računa ni predračuna</b><span>Kada izaberete paket, predračun će se automatski pojaviti ovde i biti poslat na email firme.</span></div>}
+        </div> : tab==="warranties"&&!isAccountant ? <div className="files-list">
+          {initialWarrantyReceipts.map((r:any)=><div className="file-row" key={r.id}>
+            <div className="file-type-icon"><FileText size={20}/></div>
+            <div className="file-main"><b>{r.merchant_name||"Fiskalni račun"}</b><span>{dt(r.sdc_time||r.created_at)} · {new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(r.total_amount||0))}</span><small>{r.invoice_number||""}{r.warranty_source==="auto_heuristic"?" · automatski prepoznata moguća garancija":" · sačuvano u Garancije"}</small></div>
+            <div className="file-status"><span className="badge">GARANCIJA</span><a className="btn file-download" href={`/app/receipts/${r.id}/print`} target="_blank">Račun / PDF</a></div>
+          </div>)}
+          {initialWarrantyReceipts.length===0&&<div className="files-empty"><FolderOpen size={34}/><b>Nema sačuvanih garancija</b><span>Račune za robu sa garancijom možete označiti iz baze fiskalnih računa. Očigledna tehnička roba se arhivira i automatski.</span></div>}
+        </div> : <div className="files-list">
+          {filtered.map((d:any)=><div className="file-row" key={d.id}>
+            {!isAccountant && tab==="inbox" && d.direction!=="accountant_to_client" && <label className="file-check"><input type="checkbox" checked={selected.includes(d.id)} onChange={()=>toggle(d.id)}/><span/></label>}
+            <div className="file-type-icon">{iconFor(d)}</div>
+            <div className="file-main"><b>{d.file_name}</b><span>{bytes(Number(d.size_bytes||0))} · {d.source==="scan"?"Skenirano":d.source==="camera"?"Fotografija":"Fajl"} · {dt(d.created_at)}</span>{d.direction==="accountant_to_client"&&<small className="accountant-sent-note">Od knjigovođe · automatski arhivirano{d.sent_to_client_at?` · ${dt(d.sent_to_client_at)}`:""}</small>}{d.accountant_message&&<small className="accountant-sent-message">Poruka: {d.accountant_message}</small>}{d.sent_at&&d.direction!=="accountant_to_client"&&<small>Poslato: {dt(d.sent_at)}</small>}</div>
+            <div className="file-status">{d.direction==="accountant_to_client"?<span className="badge accountant-file-badge">OD KNJIGOVOĐE</span>:<span className={`badge ${d.status==="sent"?"":"warn"}`}>{d.status==="sent"?"POSLATO":"SPREMNO"}</span>}<a className="btn file-download" href={`/api/documents/${d.id}/download`}>Preuzmi</a></div>
+          </div>)}
+          {filtered.length===0 && <div className="files-empty"><FolderOpen size={34}/><b>Nema dokumenata</b><span>{query?"Nema rezultata za ovu pretragu.":isAccountant?"Klijent još nije poslao dokumente.":tab==="sent"?"Još nema poslatih dokumenata.":tab==="archive"?"Arhiva je trenutno prazna.":"Dodajte prvi dokument iznad."}</span></div>}
+        </div>}
       </div>
     </main>
 

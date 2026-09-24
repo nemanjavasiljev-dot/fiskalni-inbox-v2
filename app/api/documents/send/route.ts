@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sendPushToAccountantsForClient } from "@/lib/push-delivery";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -22,5 +24,11 @@ export async function POST(request: Request) {
     .in("id", documentIds)
     .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ ok: true, sent: data?.length || 0 });
+  const count=data?.length||0;
+  if(count>0){
+    const admin=createAdminClient();
+    const {data:organization}=await admin.from('organizations').select('name').eq('id',org).maybeSingle();
+    await sendPushToAccountantsForClient(admin,org,{title:'Novi dokumenti',body:`${organization?.name||'Klijent'} je poslao ${count} ${count===1?'dokument':'dokumenta'} za prijem.`,url:'/app',tag:`documents-${org}`}).catch(()=>{});
+  }
+  return NextResponse.json({ ok: true, sent: count });
 }

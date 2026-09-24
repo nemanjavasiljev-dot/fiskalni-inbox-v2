@@ -18,11 +18,13 @@ export async function POST(request: Request) {
   const fileName = String(body.file_name || "dokument");
   const size = Number(body.size_bytes || 0);
   const source = ["scan", "camera", "upload"].includes(String(body.source)) ? String(body.source) : "upload";
-  if (!organizationId || !size || size > MAX_FILE) return NextResponse.json({ error: "Fajl mora biti manji od 20 MB." }, { status: 400 });
+  if (!organizationId || !Number.isSafeInteger(size) || size <= 0 || size > MAX_FILE) return NextResponse.json({ error: "Fajl mora biti manji od 20 MB." }, { status: 400 });
 
   const { data: membership } = await supabase.from("organization_members").select("role").eq("organization_id", organizationId).eq("user_id", user.id).maybeSingle();
   if (!membership || membership.role === "accountant") return NextResponse.json({ error: "Nemate pravo dodavanja dokumenata za ovu firmu." }, { status: 403 });
 
+  const {data:allowed,error:accessError}=await supabase.rpc('can_manage_org_documents',{org:organizationId});
+  if(accessError||!allowed)return NextResponse.json({error:'Dodavanje dokumenata nije dostupno za ovu firmu.'},{status:403});
   const path = `${organizationId}/${user.id}/${crypto.randomUUID()}-${safeName(fileName)}`;
   const admin = createAdminClient();
   const { data, error } = await admin.storage.from("documents").createSignedUploadUrl(path);

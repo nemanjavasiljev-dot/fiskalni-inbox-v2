@@ -48,11 +48,18 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
   async function submit(){
     if(!company){setError("Pronađite i izaberite firmu.");return;}
     if(!validateAccount())return;
+    if(busy)return;
     setBusy(true);setError("");
     try{
       const r=await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role,email:email.trim().toLowerCase(),password,company_id:company.id,plan,trial,company_contact_email:company.contact_email||"",company_contact_phone:company.contact_phone||"",accountant_invite_channel:role==="company"?accountantInviteChannel:"email",accountant_invite_contact:role==="company"?accountantInviteContact:""})});
       const d=await r.json();if(!r.ok)throw new Error(d.error||"Registracija nije uspela.");
-      if(d.accountant_invite_error){window.alert(`Nalog je kreiran, ali poziv knjigovođi nije poslat: ${d.accountant_invite_error}. Poziv možete ponovo poslati iz menija Više.`);}
+      if(d.accountant_invite_error){window.alert(`Nalog je kreiran, ali poziv knjigovođi nije poslat: ${d.accountant_invite_error}. Poziv možete ponovo poslati nakon prijave.`);}
+      if(d.requires_email_confirmation){
+        const inviteFlag=d.accountant_invite_sent?"&accountant_invite=1":"";
+        const mailFlag=d.verification_email_sent?"&mail_sent=1":"&mail_error=1";
+        const mailDetail=!d.verification_email_sent&&d.verification_email_error?`&mail_detail=${encodeURIComponent(String(d.verification_email_error).slice(0,180))}`:"";
+        router.push(`/login?registered=1&install=1&email=${encodeURIComponent(email.trim().toLowerCase())}${mailFlag}${mailDetail}${inviteFlag}`);router.refresh();return;
+      }
       if(d.checkout_required&&d.organization_id){await startCheckout(d.organization_id,plan);return;}
       router.push(d.redirect||"/app");router.refresh();
     }catch(e:any){setError(e.message||"Registracija nije uspela.");}

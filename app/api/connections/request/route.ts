@@ -12,8 +12,8 @@ export async function POST(request:Request){
   const channel=body.channel==='sms'?'sms':'email';
   const contact=String(body.contact||'').trim();
   if(!organizationId)return NextResponse.json({error:'Nedostaje organizacija koja šalje zahtev.'},{status:400});
-  const {data:membership}=await supabase.from('organization_members').select('role').eq('organization_id',organizationId).eq('user_id',user.id).maybeSingle();
-  if(!membership||!['owner','employee'].includes(String(membership.role)))return NextResponse.json({error:'Nemate pravo slanja zahteva iz ove organizacije.'},{status:403});
+  const {data:membership}=await supabase.from('organization_members').select('role,accounting_access_role').eq('organization_id',organizationId).eq('user_id',user.id).maybeSingle();
+  if(!membership||!(membership.role==='owner'||(membership.role==='employee'&&membership.accounting_access_role==='admin')))return NextResponse.json({error:'Nemate pravo slanja zahteva iz ove organizacije.'},{status:403});
   const admin=createAdminClient();
   try{
     const result=await createConnectionRequest({admin,requestUrl:request.url,senderOrganizationId:organizationId,senderUserId:user.id,channel,contact});

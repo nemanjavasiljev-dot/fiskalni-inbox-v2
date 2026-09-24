@@ -19,7 +19,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   if(decision==='active'){
     const {data:office}=await admin.from('organizations').select('owner_user_id').eq('id',rel.accountant_organization_id).maybeSingle();
     if(!clientOrg||!office)return NextResponse.json({error:'Veza firmi nije kompletna.'},{status:409});
-    const {error:mErr}=await admin.from('organization_members').upsert({organization_id:clientOrg.id,user_id:office.owner_user_id,role:'accountant'},{onConflict:'organization_id,user_id'});
+    const {error:mErr}=await admin.from('organization_members').upsert({organization_id:clientOrg.id,user_id:office.owner_user_id,role:'accountant'},{onConflict:'organization_id,user_id',ignoreDuplicates:true});
     if(mErr)return NextResponse.json({error:mErr.message},{status:400});
   }
   const {error}=await admin.from('accountant_company').update({status:decision,client_organization_id:clientOrg?.id||rel.client_organization_id,approved_by:decision==='active'?user.id:null,approved_at:decision==='active'?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq('id',id);

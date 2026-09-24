@@ -1,3 +1,5 @@
+> ISTORIJSKI DOKUMENT V5.8.9. Za V5.9.1 pratite `POKRETANJE_V5_9_1.md`; billing migracija je sada SQL 022, a atomsko rasknjižavanje SQL 023.
+
 # FiscalBox V5.8.9 — Predračun, banka i prijem knjigovođe
 
 ## Obavezno pre deploy-a

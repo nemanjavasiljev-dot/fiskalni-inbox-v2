@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const pib = normalizePib(new URL(request.url).searchParams.get('pib'));
 
   if (!isValidPib(pib)) {
-    return NextResponse.json({ ok: false, code: 'INVALID_PIB', error: 'PIB mora imati tačno 9 cifara.' }, { status: 400 });
+    return NextResponse.json({ ok: false, code: 'INVALID_PIB', error: 'PIB mora imati 9 cifara i ispravnu kontrolnu cifru.' }, { status: 400 });
   }
 
   if (!(await checkSearchRateLimit(clientKey(request)))) {

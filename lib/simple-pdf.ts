@@ -153,7 +153,7 @@ export function buildReceiptArchivePdf(receipt:any,organization?:any){
   ops.push(text(390,790,'FISKALNI RACUN',16,true,'0.05 0.22 0.17'));ops.push(line(42,744,553,744,'0.05 0.22 0.17',1.4));
   let y=720;
   const rows:[string,unknown][]=[
-    ['Klijent',organization?.name||'-'],['PIB klijenta',organization?.pib||'-'],['Dobavljac',receipt.merchant_name||'-'],['PIB dobavljaca',receipt.merchant_pib||'-'],['Broj racuna',receipt.invoice_number||'-'],['SDC broj',receipt.sdc_number||receipt.sdc_id||'-'],['Datum i vreme',fmtDate(receipt.sdc_time||receipt.created_at)],['Iznos',fmtMoney(receipt.total_amount,'RSD')],['PDV',fmtMoney(receipt.total_tax,'RSD')],['Nacin placanja',receipt.payment_method||'-'],['Kategorija',receipt.category||'Ostalo'],['Status verifikacije',receipt.verification_status||'-']
+    ['Klijent',organization?.name||'-'],['PIB klijenta',organization?.pib||'-'],['Dobavljac',receipt.merchant_name||'-'],['PIB dobavljaca',receipt.merchant_pib||'-'],['Broj racuna',receipt.invoice_number||'-'],['SDC broj',receipt.sdc_number||receipt.sdc_id||'-'],['Datum i vreme',fmtDate(receipt.sdc_time||receipt.created_at)],['Iznos',fmtMoney(receipt.total_amount,'RSD')],['PDV',fmtMoney(receipt.total_tax,'RSD')],['Nacin placanja',receipt.payment_method||'-'],['Kategorija',receipt.category||'Ostalo'],['Status verifikacije',receipt.verification_status||'-'],['Odbitni PDV',receipt.vat_deductible===true?'DA':receipt.vat_deductible===false?'NE':'CEKA ODLUKU'],['AI predlog PDV',receipt.ai_vat_recommendation?String(receipt.ai_vat_recommendation).toUpperCase():'-']
   ];
   for(const [label,value] of rows){ops.push(text(42,y,label,8,true,'0.38 0.43 0.41'));ops.push(text(175,y,safe(value,65),10));y-=25;}
   ops.push(line(42,y+8,553,y+8));y-=12;

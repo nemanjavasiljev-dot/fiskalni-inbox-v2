@@ -8,17 +8,14 @@ function normEmail(v:any){return String(v||'').trim().toLowerCase();}
 function normPhone(v:any){let d=String(v||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('0'))d=`381${d.slice(1)}`;if(d&&!d.startsWith('381')&&d.length<=10)d=`381${d}`;return d?`+${d}`:'';}
 async function loadIncomingConnections(admin:any,targetKind:'company'|'accounting',org:any,userEmail:string){
   if(!org)return [];
-  const {data:rows}=await admin.from('connection_requests').select('*').eq('target_kind',targetKind).eq('status','pending').order('created_at',{ascending:false}).limit(300);
+  if(org.role && !(org.role==='owner'||org.accounting_access_role==='admin'))return [];
   const orgId=String(org.organization_id||org.id||'');
-  const emailCandidates=new Set([normEmail(userEmail),normEmail(org.contact_email)].filter(Boolean));
-  const phone=normPhone(org.contact_phone);
-  const matched=(rows||[]).filter((r:any)=>{
-    if(r.expires_at&&new Date(r.expires_at).getTime()<Date.now())return false;
-    if(r.target_organization_id&&String(r.target_organization_id)===orgId)return true;
-    if(r.channel==='email'&&emailCandidates.has(normEmail(r.recipient_email)))return true;
-    if(r.channel==='sms'&&phone&&phone===normPhone(r.recipient_phone))return true;
-    return false;
-  });
+  const base=()=>admin.from('connection_requests').select('*').eq('target_kind',targetKind).eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(100);
+  const [direct,byEmail]=await Promise.all([
+    base().eq('target_organization_id',orgId),
+    base().is('target_organization_id',null).eq('channel','email').eq('recipient_email',normEmail(userEmail))
+  ]);
+  const matched=[...(direct.data||[]),...(byEmail.data||[])];
   const senderIds=Array.from(new Set(matched.map((r:any)=>String(r.sender_organization_id)).filter(Boolean)));
   const {data:senders}=senderIds.length?await admin.from('organizations').select('id,name,pib,organization_type').in('id',senderIds):{data:[] as any[]};
   const senderMap=new Map((senders||[]).map((o:any)=>[String(o.id),o]));
@@ -47,6 +44,11 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
   const orgs = rawOrgs.map((o:any)=>({...o,subscription:subscriptionMap.get(String(o.organization_id))||null}));
   const activeOrg = params.org ? orgs.find((x:any)=>x.organization_id===params.org) : orgs[0];
   const activeCompanyConnectionRequests=activeOrg&&activeOrg.organization_type!=='accounting'&&activeOrg.role!=='accountant'?await loadIncomingConnections(admin,'company',activeOrg,profile.auth_email||user.email||''):[];
+  let activeAccountantLinks:any[]=[];
+  if(activeOrg?.company_id&&activeOrg.organization_type!=='accounting'&&activeOrg.role!=='accountant'){
+    const {data}=await admin.from('accountant_company').select('id,accountant_organization_id,status').eq('company_id',activeOrg.company_id).eq('status','active');
+    activeAccountantLinks=data||[];
+  }
 
   const {data:ownPendingAccess}=await supabase.from('company_access_requests')
     .select('id,company_id,organization_id,status,created_at,organizations(name,pib)')
@@ -69,7 +71,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     incomingAccessRequests=(accessRows||[]).map((x:any)=>({...x,requester:requesterMap.get(String(x.requester_user_id))||null}));
     incomingAccountantRequests=(accountantRows||[]).map((x:any)=>({...x,accounting_organization:officeMap.get(String(x.accountant_organization_id))||null}));
   }
-  const accessContext={ownPending:ownPendingAccess||[],incomingAccessRequests,incomingAccountantRequests,incomingConnectionRequests:activeCompanyConnectionRequests};
+  const accessContext={ownPending:ownPendingAccess||[],incomingAccessRequests,incomingAccountantRequests,incomingConnectionRequests:activeCompanyConnectionRequests,hasActiveAccountant:activeAccountantLinks.length>0,activeAccountantLinks};
 
   let accountantOverview:any = null;
   let accountantContext:any = null;
@@ -80,7 +82,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     const orgIds = accountantOrgs.map((o:any)=>o.organization_id);
     if (orgIds.length > 0) {
       const [{data:allReceipts},{data:allDocuments},{data:receiptStatuses},{data:documentStatuses}] = await Promise.all([
-        supabase.from("receipts").select("id,organization_id,merchant_name,merchant_pib,invoice_number,sdc_time,total_amount,total_tax,category,sent_to_accountant_at,created_at").in("organization_id",orgIds).not("sent_to_accountant_at","is",null).order("sent_to_accountant_at",{ascending:false}).limit(2000),
+        supabase.from("receipts").select("id,organization_id,merchant_name,merchant_pib,invoice_number,sdc_time,total_amount,total_tax,category,sent_to_accountant_at,created_at,vat_deductible,vat_decided_at,ai_vat_recommendation,ai_vat_confidence").in("organization_id",orgIds).not("sent_to_accountant_at","is",null).order("sent_to_accountant_at",{ascending:false}).limit(2000),
         supabase.from("documents").select("id,organization_id,file_name,mime_type,size_bytes,source,status,sent_at,created_at").in("organization_id",orgIds).eq("status","sent").order("sent_at",{ascending:false}).limit(2000),
         supabase.from("accountant_receipt_status").select("*").eq("accountant_user_id",user.id),
         supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id)

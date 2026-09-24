@@ -3,17 +3,22 @@ import { createClient } from "@/lib/supabase/server";
 import ClientWorkspace from "./client-ui";
 
 function parseMonth(value?:string){
-  if(value && /^\d{4}-\d{2}$/.test(value)) return value;
+  if(value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return value;
   const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
 }
+function parseYear(value?:string){
+  if(value && /^(19|20)\d{2}$/.test(value)) return value;
+  return null;
+}
 
-export default async function AccountantClientPage({params,searchParams}:{params:Promise<{id:string}>,searchParams:Promise<{month?:string}>}){
+export default async function AccountantClientPage({params,searchParams}:{params:Promise<{id:string}>,searchParams:Promise<{month?:string;year?:string}>}){
   const supabase=await createClient();
   const {data:{user}}=await supabase.auth.getUser();
   if(!user) redirect("/login");
   const {id}=await params;
   const sp=await searchParams;
   const selectedMonth=parseMonth(sp.month);
+  const selectedYear=parseYear(sp.year);
 
   const {data:membership}=await supabase.from("organization_members")
     .select("role,organizations(id,name,pib,registration_number,address,plan,logo_path)")
@@ -28,5 +33,10 @@ export default async function AccountantClientPage({params,searchParams}:{params
     supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id).eq("organization_id",id)
   ]);
 
-  return <ClientWorkspace organization={org} selectedMonth={selectedMonth} receipts={receipts||[]} documents={documents||[]} receiptStatuses={receiptStatuses||[]} documentStatuses={documentStatuses||[]}/>;
+  const assignedReceiptIds=new Set((receiptStatuses||[]).filter((s:any)=>s.opened_at).map((s:any)=>String(s.receipt_id)));
+  const assignedDocumentIds=new Set((documentStatuses||[]).filter((s:any)=>s.opened_at).map((s:any)=>String(s.document_id)));
+  const assignedReceipts=(receipts||[]).filter((r:any)=>assignedReceiptIds.has(String(r.id)));
+  const assignedDocuments=(documents||[]).filter((d:any)=>assignedDocumentIds.has(String(d.id)));
+
+  return <ClientWorkspace organization={org} selectedMonth={selectedMonth} selectedYear={selectedYear} receipts={assignedReceipts} documents={assignedDocuments} receiptStatuses={receiptStatuses||[]} documentStatuses={documentStatuses||[]}/>;
 }

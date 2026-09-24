@@ -1,0 +1,4 @@
+FiscalBox V5.9.2.0
+- Syntax check: 163 TS/TSX fajla, 0 sintaksnih grešaka.
+- Buyer PIB parser ručno testiran na: ID kupca: 10:114814160, BuyerId=10:114814160, 10:114814160, 10114814160 -> 114814160.
+- Full regression test nije pokrenut: lokalno nedostaje web-push dependency (node_modules nije instaliran).

@@ -14,6 +14,15 @@ export async function POST(request:Request){
   const admin=createAdminClient();
   const {data:employeeMembership}=await admin.from('organization_members').select('role').eq('organization_id',officeId).eq('user_id',employeeId).maybeSingle();
   if(employeeMembership?.role!=='employee')return NextResponse.json({error:'Izabrani korisnik nije zaposleni ove agencije.'},{status:400});
+  if(clients.length){
+    const {data:relations,error:relationError}=await admin.from('accountant_company').select('client_organization_id').eq('accountant_organization_id',officeId).eq('status','active').in('client_organization_id',clients);
+    if(relationError)return NextResponse.json({error:'Provera klijenata nije uspela.'},{status:503});
+    const allowed=new Set((relations||[]).map((r:any)=>r.client_organization_id));
+    if(clients.some(id=>!allowed.has(id)))return NextResponse.json({error:'Možete dodeliti samo klijente koji su odobrili povezivanje sa vašom agencijom.'},{status:403});
+    const {data:conflicts,error:conflictError}=await admin.from('organization_members').select('role').eq('user_id',employeeId).in('organization_id',clients).neq('role','accountant');
+    if(conflictError) return NextResponse.json({error:'Provera uloga nije uspela.'},{status:503});
+    if(conflicts?.length)return NextResponse.json({error:'Zaposleni već ima drugu ulogu u izabranoj firmi.'},{status:409});
+  }
   const {data:old}=await admin.from('accountant_client_assignments').select('client_organization_id').eq('accounting_organization_id',officeId).eq('employee_user_id',employeeId);
   const oldIds=(old||[]).map((x:any)=>String(x.client_organization_id));
   const removeIds:string[]=oldIds.filter((id:string)=>!clients.includes(id));

@@ -1,0 +1,4 @@
+const ts=require(process.env.FISCALBOX_TYPESCRIPT_PATH || 'typescript'),fs=require('fs'),path=require('path');
+const root=path.resolve(__dirname,'..');let count=0,errors=0;
+function walk(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){if(['node_modules','.next'].includes(e.name))continue;const f=path.join(dir,e.name);if(e.isDirectory())walk(f);else if(/\.tsx?$/.test(f)&&!f.endsWith('.d.ts')){count++;const source=fs.readFileSync(f,'utf8');const r=ts.transpileModule(source,{fileName:f,reportDiagnostics:true,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}});for(const d of r.diagnostics||[]){if(d.category===ts.DiagnosticCategory.Error){errors++;console.log(f,ts.flattenDiagnosticMessageText(d.messageText,' '));}}}}}
+walk(root);console.log(JSON.stringify({files:count,syntaxErrors:errors,typescript:ts.version}));process.exitCode=errors?1:0;

@@ -55,23 +55,27 @@ export default function CompanyLookup({
 
   React.useEffect(() => {
     if (value?.pib) setPib(value.pib);
+    setSource(value?.registry_source || '');
+    setCheckedAt(value?.registry_checked_at || null);
   }, [value?.id, value?.pib]);
 
   React.useEffect(() => {
+    const id = ++requestId.current;
+    const controller = new AbortController();
+    setLoading(false);
     if (disabled || value || showFallback || manualMode) return;
-    if (pib.length < 9) {
-      setMessage('');
+    if (!/^\d{9}$/.test(pib)) {
+      setMessage(pib.length > 9 || /\D/.test(pib) ? 'PIB mora imati tačno 9 cifara.' : '');
       setWarning('');
       return;
     }
 
-    const id = ++requestId.current;
     const timer = setTimeout(async () => {
       setLoading(true);
       setMessage('');
       setWarning('');
       try {
-        const r = await fetch(`/api/company-lookup?pib=${encodeURIComponent(pib)}`, { cache: 'no-store' });
+        const r = await fetch(`/api/company-lookup?pib=${encodeURIComponent(pib)}`, { cache: 'no-store', signal: controller.signal });
         const d = await r.json();
         if (id !== requestId.current) return;
         if (!r.ok || !d.ok || !d.company) {
@@ -84,7 +88,7 @@ export default function CompanyLookup({
         setSource(String(d.source || d.company.registry_source || 'NBS+APR'));
         setCheckedAt(d.checkedAt || d.company.registry_checked_at || null);
         setWarning(String(d.warning || ''));
-        setMessage('Kompanija je pronađena i proverena u zvaničnim registrima.');
+        setMessage('Podaci kompanije su pronađeni. Proverite izvor i datum provere.');
       } catch (e: any) {
         if (id !== requestId.current) return;
         setMessage(e.message || 'Automatska provera registra trenutno nije dostupna.');
@@ -94,7 +98,7 @@ export default function CompanyLookup({
       }
     }, 400);
 
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); requestId.current += 1; };
   }, [pib, disabled, value?.id, showFallback, manualMode, allowNameMbFallback, onSelect]);
 
   function clear() {
@@ -126,19 +130,19 @@ export default function CompanyLookup({
               className="company-search-input"
               value={pib}
               disabled={disabled}
-              onChange={(e) => setPib(digitsOnly(e.target.value))}
+              onChange={(e) => setPib(e.target.value.replace(/\s/g, ''))}
               placeholder="Unesite PIB — 9 cifara"
               inputMode="numeric"
               pattern="[0-9]*"
-              maxLength={9}
+              maxLength={20}
               autoComplete="off"
               aria-label="PIB kompanije"
             />
             <span className={`company-lookup-counter ${pib.length === 9 ? 'complete' : ''}`}>{pib.length}/9</span>
             {loading && <Loader2 className="spin" size={17} />}
           </div>
-          {loading && <div className="company-lookup-status"><Loader2 className="spin" size={15} /> Pretražujemo zvanične registre…</div>}
-          {!loading && message && <div className="company-search-state error-state company-lookup-message">{message}</div>}
+          {loading && <div className="company-lookup-status"><Loader2 className="spin" size={15} /> Tražimo podatke kompanije…</div>}
+          {!loading && message && <div role="status" className="company-search-state error-state company-lookup-message">{message}</div>}
           {!loading && !message && pib.length > 0 && pib.length < 9 && <small className="company-lookup-help">PIB mora imati 9 cifara. Pretraga će krenuti automatski.</small>}
         </>
       )}
@@ -182,6 +186,7 @@ export default function CompanyLookup({
         <div className="company-lookup-fallback">
           {!showFallback ? (
             <div className="company-lookup-fallback-actions">
+              <a className="company-lookup-fallback-btn" href="https://webappcenter.nbs.rs/PnWebApp/CompanyAccount/CompanyAccountResident" target="_blank" rel="noopener noreferrer">Otvori NBS registar</a>
               <button type="button" className="company-lookup-fallback-btn" onClick={() => { setShowFallback(true); setManualMode(false); setMessage(''); }}>
                 Pretraži po nazivu ili matičnom broju
               </button>

@@ -1,7 +1,8 @@
+import { checkSearchRateLimit } from '@/lib/company-registry';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
-import { createConnectionRequest } from '@/lib/connection-requests';
+import { sendRegistrationVerificationEmail } from '@/lib/mailer';
+import { createConnectionRequest, validEmail as validInviteEmail, normalizePhone, validPhone } from '@/lib/connection-requests';
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -24,22 +25,29 @@ async function uniqueUsername(admin:any,companyName:string,registrationNumber?:s
 }
 
 export async function POST(request:Request){
-  const body=await request.json();
+  const ip=request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'unknown';
+  if(!(await checkSearchRateLimit(`register:${ip}`)))return NextResponse.json({error:'Previše pokušaja. Pokušajte za minut.'},{status:429});
+  const body=await request.json().catch(()=>null);
+  if(!body)return NextResponse.json({error:'Neispravan zahtev.'},{status:400});
   const role=body.role==='accountant'?'accountant':'company';
   const email=String(body.email||'').trim().toLowerCase();
   const password=String(body.password||'');
   const companyId=String(body.company_id||'');
   const plan=body.plan==='premium'?'premium':'basic';
   const trial=body.trial!==false;
-  const accountantInviteChannel=body.accountant_invite_channel==='sms'?'sms':'email';
-  const accountantInviteContact=String(body.accountant_invite_contact||'').trim();
   const companyContactEmail=String(body.company_contact_email||'').trim().toLowerCase();
   const companyContactPhone=String(body.company_contact_phone||'').trim().slice(0,80);
+  const accountantInviteChannel=body.accountant_invite_channel==='sms'?'sms':'email';
+  const accountantInviteContact=String(body.accountant_invite_contact||'').trim();
 
   if(!EMAIL.test(email))return NextResponse.json({error:'Unesite ispravnu email adresu.'},{status:400});
-  if(password.length<8)return NextResponse.json({error:'Lozinka mora imati najmanje 8 znakova.'},{status:400});
+  if(password.length<8||password.length>256)return NextResponse.json({error:'Lozinka mora imati najmanje 8 znakova.'},{status:400});
   if(!companyId)return NextResponse.json({error:'Pronađite i izaberite firmu.'},{status:400});
   if(companyContactEmail&&!EMAIL.test(companyContactEmail))return NextResponse.json({error:'Kontakt email firme nije ispravan.'},{status:400});
+  if(role==='company'&&accountantInviteContact){
+    if(accountantInviteChannel==='email'&&!validInviteEmail(accountantInviteContact.toLowerCase()))return NextResponse.json({error:'Email knjigovođe nije ispravan.'},{status:400});
+    if(accountantInviteChannel==='sms'&&!validPhone(normalizePhone(accountantInviteContact)))return NextResponse.json({error:'Telefon knjigovođe nije ispravan.'},{status:400});
+  }
 
   const admin=createAdminClient();
   const {data:company}=await admin.from('companies').select('*').eq('id',companyId).maybeSingle();
@@ -49,21 +57,39 @@ export async function POST(request:Request){
   if(existingEmail)return NextResponse.json({error:'Email adresa je već registrovana.'},{status:409});
 
   const username=await uniqueUsername(admin,company.name,company.registration_number);
-  let newUserId:string|undefined;let newOrgId:string|undefined;
+  const origin=new URL(process.env.NEXT_PUBLIC_APP_URL || request.url).origin;
+  const redirectTo=`${origin}/auth/callback?next=${encodeURIComponent('/login?verified=1')}`;
+  let newUserId:string|undefined;
+  let newOrgId:string|undefined;
+  let accessRequestId:string|undefined;
   try{
-    const created=await admin.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{username,registration_role:role,company_id:company.id}});
-    if(created.error||!created.data.user)throw new Error(created.error?.message||'Korisnik nije kreiran.');
-    newUserId=created.data.user.id;
+    // generateLink kreira korisnika, ali NE šalje Supabase email. Verifikacioni email šaljemo
+    // kroz već verifikovani FiscalBox/Resend domen, pa registracija ne zavisi od Supabase SMTP limita.
+    const generated=await admin.auth.admin.generateLink({
+      type:'signup',email,password,
+      options:{redirectTo,data:{username,registration_role:role,company_id:company.id}}
+    });
+    if(generated.error)throw new Error(generated.error.message||'Korisnik nije kreiran.');
+    const generatedData:any=generated.data;
+    const createdUser=generatedData?.user;
+    const actionLink=String(generatedData?.properties?.action_link||'');
+    if(!createdUser?.id||!actionLink)throw new Error('Verifikacioni link nije mogao da se generiše.');
+    newUserId=String(createdUser.id);
 
-    const {error:profileError}=await admin.from('profiles').update({username,full_name:null,global_role:role==='accountant'?'accountant':'user',primary_company_id:company.id}).eq('user_id',newUserId);
+    const {error:profileError}=await admin.from('profiles').update({username,auth_email:email,full_name:null,global_role:role==='accountant'?'accountant':'user',primary_company_id:company.id}).eq('user_id',newUserId);
     if(profileError)throw profileError;
 
     const {data:existingOrg}=await admin.from('organizations').select('id,name,owner_user_id,organization_type').eq('company_id',company.id).limit(1).maybeSingle();
     if(existingOrg){
       const {data:pendingAccess}=await admin.from('company_access_requests').select('id').eq('company_id',company.id).eq('requester_user_id',newUserId).eq('status','pending').maybeSingle();
-      if(!pendingAccess)await admin.from('company_access_requests').insert({company_id:company.id,organization_id:existingOrg.id,requester_user_id:newUserId,requested_role:'employee',status:'pending'});
-      const supabase=await createClient();await supabase.auth.signInWithPassword({email,password});
-      return NextResponse.json({ok:true,created:true,username,access_request_pending:true,redirect:'/app'});
+      if(!pendingAccess){
+        const {data:createdAccess,error:accessError}=await admin.from('company_access_requests').insert({company_id:company.id,organization_id:existingOrg.id,requester_user_id:newUserId,requested_role:'employee',status:'pending'}).select('id').single();
+        if(accessError)throw accessError;
+        accessRequestId=createdAccess?.id;
+      }
+      const emailResult=await sendRegistrationVerificationEmail({to:email,username,verifyUrl:actionLink});
+      if(!emailResult.sent)console.error('[FiscalBox registration] verification email failed',{email,status:emailResult.status,error:emailResult.error});
+      return NextResponse.json({ok:true,created:true,username,access_request_pending:true,requires_email_confirmation:true,verification_email_sent:emailResult.sent,verification_email_error:emailResult.sent?null:(emailResult.error||(!emailResult.configured?'RESEND_API_KEY nije podešen.':'Email nije poslat.')),redirect:'/login?registered=1'});
     }
 
     const now=new Date();const trialEnd=new Date(now.getTime()+10*24*60*60*1000).toISOString();
@@ -74,23 +100,26 @@ export async function POST(request:Request){
     const {error:memberError}=await admin.from('organization_members').insert({organization_id:org.id,user_id:newUserId,role:'owner',accounting_access_role:role==='accountant'?'admin':'user'});
     if(memberError)throw memberError;
 
-    const {error:subError}=await admin.from('subscriptions').insert({organization_id:org.id,company_id:company.id,plan,seat_count:1,status:trial?'trial':'pending_checkout',provider:trial?null:'lemonsqueezy',trial_started_at:trial?now.toISOString():null,trial_ends_at:trial?trialEnd:null,trial_used_at:trial?now.toISOString():null,current_period_end:trial?trialEnd:null});
+    const {error:subError}=await admin.from('subscriptions').insert({organization_id:org.id,company_id:company.id,plan,seat_count:1,status:trial?'trial':'pending_checkout',provider:null,trial_started_at:trial?now.toISOString():null,trial_ends_at:trial?trialEnd:null,trial_used_at:trial?now.toISOString():null,current_period_end:trial?trialEnd:null});
     if(subError)throw subError;
 
+    const emailResult=await sendRegistrationVerificationEmail({to:email,username,verifyUrl:actionLink});
+    if(!emailResult.sent)console.error('[FiscalBox registration] verification email failed',{email,status:emailResult.status,error:emailResult.error});
 
-    let accountantInviteError='';
+    let accountantInviteSent=false;
+    let accountantInviteError:string|null=null;
     if(role==='company'&&accountantInviteContact){
       try{
-        await createConnectionRequest({admin,requestUrl:request.url,senderOrganizationId:org.id,senderUserId:newUserId,channel:accountantInviteChannel,contact:accountantInviteContact});
-      }catch(e:any){
-        accountantInviteError=e?.message||'Zahtev knjigovođi nije poslat.';
+        await createConnectionRequest({admin,requestUrl:request.url,senderOrganizationId:String(org.id),senderUserId:newUserId,channel:accountantInviteChannel,contact:accountantInviteContact});
+        accountantInviteSent=true;
+      }catch(inviteError:any){
+        accountantInviteError=inviteError?.message||'Poziv knjigovođi nije poslat.';
       }
     }
 
-    const supabase=await createClient();const login=await supabase.auth.signInWithPassword({email,password});
-    if(login.error)return NextResponse.json({ok:true,created:true,username,requires_login:true,redirect:'/login',accountant_invite_error:accountantInviteError||null});
-    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,checkout_required:!trial,redirect:trial?'/app':'/app/subscription',accountant_invite_error:accountantInviteError||null});
+    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,requires_email_confirmation:true,verification_email_sent:emailResult.sent,verification_email_error:emailResult.sent?null:(emailResult.error||(!emailResult.configured?'RESEND_API_KEY nije podešen.':'Email nije poslat.')),accountant_invite_sent:accountantInviteSent,accountant_invite_error:accountantInviteError,redirect:'/login?registered=1'});
   }catch(e:any){
+    if(accessRequestId){try{await admin.from('company_access_requests').delete().eq('id',accessRequestId);}catch{}}
     if(newOrgId){try{await admin.from('organizations').delete().eq('id',newOrgId);}catch{}}
     if(newUserId){try{await admin.auth.admin.deleteUser(newUserId);}catch{}}
     return NextResponse.json({error:e?.message||'Registracija nije uspela.'},{status:400});

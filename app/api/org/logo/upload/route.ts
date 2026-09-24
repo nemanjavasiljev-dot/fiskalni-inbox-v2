@@ -12,12 +12,13 @@ export async function POST(request: Request) {
   const { organization_id, file_name, size_bytes } = await request.json();
   const org = String(organization_id || "");
   const size = Number(size_bytes || 0);
-  if (!org || !size || size > MAX_LOGO) return NextResponse.json({ error: "Logo mora biti slika manja od 5 MB." }, { status: 400 });
+  if (!org || !Number.isSafeInteger(size) || size <= 0 || size > MAX_LOGO) return NextResponse.json({ error: "Logo mora biti slika manja od 5 MB." }, { status: 400 });
 
   const { data: membership } = await supabase.from("organization_members").select("role").eq("organization_id", org).eq("user_id", user.id).maybeSingle();
   if (!membership || membership.role === "accountant") return NextResponse.json({ error: "Nemate pravo menjanja logoa ove firme." }, { status: 403 });
 
   const ext = String(file_name || "logo.jpg").split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "jpg";
+  if(!['jpg','jpeg','png','webp'].includes(ext.toLowerCase()))return NextResponse.json({error:'Logo mora biti JPG, PNG ili WebP slika.'},{status:400});
   const path = `${org}/logo-${crypto.randomUUID()}.${ext.slice(0, 8)}`;
   const admin = createAdminClient();
   const { data, error } = await admin.storage.from("organization-assets").createSignedUploadUrl(path);

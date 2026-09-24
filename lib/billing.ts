@@ -14,7 +14,7 @@ function addDays(date: Date, days: number) { const d = new Date(date); d.setDate
 
 async function nextDocumentNumber(admin: any, type: 'proforma'|'invoice') {
   const { data, error } = await admin.rpc('next_billing_document_number', { p_document_type: type });
-  if (error || !data) throw new Error(error?.message || 'Broj dokumenta nije mogao da se generiše. Pokrenite SQL 017.');
+  if (error || !data) throw new Error(error?.message || 'Broj dokumenta nije mogao da se generiše. Pokrenite SQL 022.');
   return String(data);
 }
 
@@ -124,80 +124,36 @@ export async function settleProforma(opts: {
   paidAt?: string | null;
   appBillingUrl?: string;
 }) {
-  const { data: proforma, error: proformaError } = await opts.admin.from('billing_invoices').select('*').eq('id', opts.proformaId).maybeSingle();
-  if (proformaError || !proforma) throw new Error(proformaError?.message || 'Predračun nije pronađen.');
-  if (proforma.document_type !== 'proforma') throw new Error('Izabrani dokument nije predračun.');
-
-  const { data: already } = await opts.admin.from('billing_invoices').select('*').eq('source_proforma_id', proforma.id).eq('document_type', 'invoice').limit(1).maybeSingle();
-  if (already) return { invoice: already, alreadySettled: true };
-  if (!['unpaid','converted'].includes(String(proforma.status))) throw new Error('Predračun nije otvoren za rasknjižavanje.');
-
   const paidAt = opts.paidAt || new Date().toISOString();
-  const invoiceNumber = await nextDocumentNumber(opts.admin, 'invoice');
-  const start = new Date(paidAt);
-  const end = addCalendarMonth(start);
-  const payload: any = {
-    organization_id: proforma.organization_id,
-    company_id: proforma.company_id || null,
-    invoice_number: invoiceNumber,
-    document_type: 'invoice',
-    plan: proforma.plan,
-    quantity: proforma.quantity,
-    unit_price_net: proforma.unit_price_net,
-    subtotal_net: proforma.subtotal_net,
-    vat_rate: 0,
-    vat_amount: 0,
-    total_amount: proforma.total_amount,
-    currency: proforma.currency || 'RSD',
-    status: 'paid',
-    issued_at: paidAt,
-    paid_at: paidAt,
-    recipient_name: proforma.recipient_name,
-    recipient_pib: proforma.recipient_pib,
-    recipient_registration_number: proforma.recipient_registration_number || null,
-    recipient_address: proforma.recipient_address,
-    recipient_email: proforma.recipient_email,
-    issuer_snapshot: proforma.issuer_snapshot,
-    provider: 'bank_transfer',
-    payment_reference: proforma.payment_reference,
-    source_proforma_id: proforma.id,
-    bank_transaction_id: opts.bankTransactionId || null,
-    verification_source: opts.verificationSource || (opts.bankTransactionId ? 'BANK_API' : 'MASTER_RUČNA_VERIFIKACIJA'),
-    verified_at: new Date().toISOString(),
-    service_period_start: start.toISOString().slice(0,10),
-    service_period_end: end.toISOString().slice(0,10),
-    note: `Finalni račun po predračunu ${proforma.invoice_number}. Uplata verifikovana u FiscalBox sistemu.`
-  };
-  const { data: invoice, error } = await opts.admin.from('billing_invoices').insert(payload).select('*').single();
-  if (error) throw error;
-
-  await opts.admin.from('billing_invoices').update({
-    status: 'converted', paid_at: paidAt, verified_at: new Date().toISOString(),
-    verification_source: payload.verification_source, bank_transaction_id: opts.bankTransactionId || null
-  }).eq('id', proforma.id);
-
-  await opts.admin.from('subscriptions').update({
-    plan: proforma.plan, seat_count: proforma.quantity, provider: 'bank_transfer', status: 'active',
-    activated_at: paidAt, last_payment_at: paidAt, current_period_end: end.toISOString(), renews_at: end.toISOString(),
-    provider_status: 'paid', payment_processor: opts.bankTransactionId ? 'bank_api' : 'manual_bank_verification'
-  }).eq('organization_id', proforma.organization_id);
-  await opts.admin.from('organizations').update({ plan: proforma.plan, status: 'active', service_block_reason: null, service_blocked_at: null }).eq('id', proforma.organization_id);
-
-  if (opts.bankTransactionId) {
-    await opts.admin.from('bank_transactions').update({
-      status: 'matched', matched_invoice_id: invoice.id, matched_organization_id: proforma.organization_id,
-      verified_by: opts.verifiedBy || null, verified_at: new Date().toISOString(), updated_at: new Date().toISOString()
-    }).eq('id', opts.bankTransactionId);
+  const { data, error } = await opts.admin.rpc('settle_bank_proforma', {
+    p_proforma: opts.proformaId,
+    p_bank_transaction: opts.bankTransactionId || null,
+    p_verified_by: opts.verifiedBy || null,
+    p_source: opts.verificationSource || (opts.bankTransactionId ? 'BANK_API' : 'MASTER_RUCNA_VERIFIKACIJA'),
+    p_paid_at: paidAt
+  });
+  if (error || !data?.invoice) {
+    throw new Error(error?.message || 'Rasknjižavanje nije uspelo. Pokrenite SQL 023.');
   }
 
+  const invoice = data.invoice;
+  const alreadySettled = Boolean(data.alreadySettled);
   let email: any = null;
-  if (proforma.recipient_email) {
+  if (invoice.recipient_email && (!alreadySettled || !invoice.emailed_at)) {
     email = await sendBillingInvoiceEmail({
-      to: proforma.recipient_email, organizationName: proforma.recipient_name, invoiceNumber,
-      plan: proforma.plan, totalAmount: Number(proforma.total_amount || 0), billingUrl: opts.appBillingUrl || '',
-      pdf: buildBillingPdf(invoice), documentType: 'invoice'
+      to: invoice.recipient_email,
+      organizationName: invoice.recipient_name,
+      invoiceNumber: invoice.invoice_number,
+      plan: invoice.plan,
+      totalAmount: Number(invoice.total_amount || 0),
+      billingUrl: opts.appBillingUrl || '',
+      pdf: buildBillingPdf(invoice),
+      documentType: 'invoice'
     });
-    if (email?.sent) await opts.admin.from('billing_invoices').update({ emailed_at: new Date().toISOString() }).eq('id', invoice.id);
+    if (email?.sent) {
+      await opts.admin.from('billing_invoices').update({ emailed_at: new Date().toISOString() }).eq('id', invoice.id);
+      invoice.emailed_at = new Date().toISOString();
+    }
   }
-  return { invoice, email, alreadySettled: false };
+  return { invoice, email, alreadySettled };
 }

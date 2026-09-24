@@ -16,19 +16,28 @@ export async function POST(request: Request) {
   const { data: membership } = await supabase.from("organization_members").select("role").eq("organization_id", org).eq("user_id", user.id).maybeSingle();
   if (!membership || membership.role === "accountant") return NextResponse.json({ error: "Nemate pravo dodavanja dokumenata." }, { status: 403 });
 
+  if(path.split('/').some(part=>part==='..'||part==='.')||path.split('/').length!==3)return NextResponse.json({error:'Neispravna putanja.'},{status:400});
+  const admin=createAdminClient();
+  const fileBase=path.slice(path.lastIndexOf('/')+1);
+  const folder=path.slice(0,path.lastIndexOf('/'));
+  const {data:objects,error:objectError}=await admin.storage.from('documents').list(folder,{search:fileBase,limit:100});
+  const object=objects?.find(o=>o.name===fileBase);
+  const storedSize=Number(object?.metadata?.size);
+  if(objectError||!object||!Number.isSafeInteger(storedSize)||storedSize<=0||storedSize>20*1024*1024)return NextResponse.json({error:'Fajl nije uspešno otpremljen ili je prevelik. Ponovite otpremanje.'},{status:400});
+  const {data:existing}=await supabase.from('documents').select('*').eq('storage_path',path).maybeSingle();
+  if(existing)return NextResponse.json({ok:true,document:existing,duplicate:true});
   const { data, error } = await supabase.from("documents").insert({
     organization_id: org,
     uploaded_by: user.id,
     file_name: fileName,
     storage_path: path,
-    mime_type: String(body.mime_type || "") || null,
-    size_bytes: Number(body.size_bytes || 0),
+    mime_type: String(object.metadata?.mimetype || "") || null,
+    size_bytes: storedSize,
     source
   }).select("*").single();
 
   if (error) {
-    const admin = createAdminClient();
-    await admin.storage.from("documents").remove([path]);
+    // Keep the uploaded object for a retry; deleting on a concurrent duplicate could destroy the valid document.
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
   return NextResponse.json({ ok: true, document: data });

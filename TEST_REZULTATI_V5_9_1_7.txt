@@ -1,0 +1,6 @@
+FiscalBox V5.9.1.7
+
+- TypeScript/TSX syntax scan: 161 files, 0 syntax errors (TypeScript 5.8.3).
+- NotificationRuntime DOM type reproducer: PASS after removal of unsupported `renotify` property.
+- Regression suite: not executed to completion in this environment because `web-push` dependency is not locally installed and npm install timed out.
+- Required DB migration: SQL_025_AI_ULAZNI_PDV_ODLUKA.sql

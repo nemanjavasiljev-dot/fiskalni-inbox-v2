@@ -77,6 +77,9 @@ export default function CompanySearch({
   }, [value?.id]);
 
   React.useEffect(() => {
+    const id = ++requestId.current;
+    const controller = new AbortController();
+    setLoading(false);
     if (disabled || value) return;
     const q = query.trim();
     if (q.length < 2) {
@@ -86,12 +89,11 @@ export default function CompanySearch({
       return;
     }
 
-    const id = ++requestId.current;
     const timer = setTimeout(async () => {
       setLoading(true);
       setMessage('');
       try {
-        const r = await fetch(`/api/companies/search?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+        const r = await fetch(`/api/companies/search?q=${encodeURIComponent(q)}`, { cache: 'no-store', signal: controller.signal });
         const d = await r.json();
         if (id !== requestId.current) return;
         if (!r.ok) throw new Error(d.error || 'Pretraga firmi trenutno nije dostupna.');
@@ -110,7 +112,7 @@ export default function CompanySearch({
       }
     }, 350);
 
-    return () => clearTimeout(timer);
+    return () => {clearTimeout(timer);controller.abort();requestId.current += 1;};
   }, [query, disabled, value?.id]);
 
   function choose(company: CompanySearchValue) {

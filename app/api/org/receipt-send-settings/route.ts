@@ -1,3 +1,4 @@
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   const { data: membership } = await supabase.from("organization_members").select("role").eq("organization_id", org).eq("user_id", user.id).maybeSingle();
   if (!membership || membership.role === "accountant") return NextResponse.json({ error: "Nemate pravo menjanja ovog podešavanja." }, { status: 403 });
 
-  const { error } = await supabase.from("organizations").update({ receipt_send_schedule: selected }).eq("id", org);
+  const { error } = await createAdminClient().from("organizations").update({ receipt_send_schedule: selected }).eq("id", org);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true, schedule: selected });
 }
