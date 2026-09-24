@@ -30,6 +30,6 @@ export async function POST(request:Request){
     await admin.from('subscriptions').update(subUpdate).eq('organization_id',organizationId);
     await admin.from('organizations').update({plan,...(!trialStillActive?{status:'pending_payment'}:{})}).eq('id',organizationId);
     const mailSent=Boolean(result.email?.sent);
-    return NextResponse.json({ok:true,invoice_id:result.invoice?.id,reused:result.reused,url:'/app/billing?status=unpaid',email_sent:mailSent,message:result.reused?(mailSent?'Postojeći predračun je ponovo poslat na email.':'Postojeći predračun je spreman u Moji računi, ali email nije poslat. Proverite Resend konfiguraciju.'):(mailSent?'Predračun je kreiran, dodat u Moji računi i poslat na email.':'Predračun je kreiran i dodat u Moji računi, ali email nije poslat. Proverite Resend konfiguraciju.')});
+    return NextResponse.json({ok:true,invoice_id:result.invoice?.id,reused:result.reused,url:`/app/files?org=${organizationId}&tab=billing`,email_sent:mailSent,message:result.reused?(mailSent?'Postojeći predračun je ponovo poslat na email.':'Postojeći predračun je spreman u Fajlovi → Računi / predračuni, ali email nije poslat. Proverite Resend konfiguraciju.'):(mailSent?'Predračun je kreiran, dodat u Fajlovi → Računi / predračuni i poslat na email firme.':'Predračun je kreiran i dodat u Fajlovi → Računi / predračuni, ali email nije poslat. Proverite Resend konfiguraciju.')});
   }catch(e:any){return NextResponse.json({error:e?.message||'Predračun nije mogao da se kreira.'},{status:400});}
 }

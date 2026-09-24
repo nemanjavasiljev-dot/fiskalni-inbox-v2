@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import FilesWorkspace from "./files-ui";
 
-export default async function FilesPage({ searchParams }: { searchParams: Promise<{ org?: string }> }) {
+export default async function FilesPage({ searchParams }: { searchParams: Promise<{ org?: string; tab?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -22,7 +22,15 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
 
   let query = supabase.from("documents").select("*").eq("organization_id", activeOrg.organization_id).order("created_at", { ascending: false });
   if (activeOrg.role === "accountant") query = query.eq("status", "sent");
-  const { data: documents } = await query;
+  const [{ data: documents }, { data: billingDocuments }, { data: warrantyReceipts }] = await Promise.all([
+    query,
+    activeOrg.role === "accountant"
+      ? Promise.resolve({data:[] as any[]})
+      : supabase.from("billing_invoices").select("*").eq("organization_id",activeOrg.organization_id).order("issued_at",{ascending:false}),
+    activeOrg.role === "accountant"
+      ? Promise.resolve({data:[] as any[]})
+      : supabase.from("receipts").select("id,merchant_name,merchant_pib,invoice_number,sdc_time,created_at,total_amount,warranty_archived_at,warranty_source,warranty_note").eq("organization_id",activeOrg.organization_id).not("warranty_archived_at","is",null).order("warranty_archived_at",{ascending:false})
+  ]);
 
-  return <FilesWorkspace profile={profile} organizations={organizations} activeOrg={activeOrg} initialDocuments={documents || []} />;
+  return <FilesWorkspace profile={profile} organizations={organizations} activeOrg={activeOrg} initialDocuments={documents || []} initialBillingDocuments={billingDocuments || []} initialWarrantyReceipts={warrantyReceipts || []} initialTab={params.tab} />;
 }

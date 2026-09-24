@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizePib, normalizeVerification } from "@/lib/fiscal";
+import { normalizePib, normalizeVerification, extractBuyerPib } from "@/lib/fiscal";
+import { lookupCompanyByPib } from "@/lib/company-registry/company-registry-service";
 import PrintButton from "./print-button";
 import VatDecisionPanel from "@/components/VatDecisionPanel";
 import { ensureVatAiAnalysis } from "@/lib/vat-ai";
@@ -60,7 +61,7 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
     .eq("id",r.organization_id).maybeSingle();
 
   const normalized=normalizeVerification(r.raw_json || {});
-  const buyerPib=normalizePib(normalized.buyer_pib || r.buyer_pib) || null;
+  const buyerPib=normalizePib(normalized.buyer_pib || r.buyer_pib) || extractBuyerPib(r.raw_json || {}) || null;
 
   // Stari računi mogu imati PIB samo u journal-u (npr. "ID kupca: 10:114814160").
   // Kada ga uspešno prepoznamo, dopunjujemo i sam receipt zapis da ga ubuduće koriste CSV i ostali prikazi.
@@ -86,14 +87,32 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
       .select("id,name,pib,registration_number,address,city,municipality,activity_code,activity_name,registry_source,registry_checked_at,nbs_last_check,source_status")
       .eq("pib",buyerPib).limit(1).maybeSingle();
     buyerCompany=data || null;
+    if(!buyerCompany){
+      try{
+        const resolved=await lookupCompanyByPib(buyerPib);
+        buyerCompany={...resolved.company,registry_source:resolved.source,registry_checked_at:resolved.checkedAt};
+      }catch(e:any){
+        console.warn("[FiscalBox print] buyer PIB lookup failed",{buyerPib,error:String(e?.message||e).slice(0,180)});
+      }
+    }
   }
 
-  const buyerName=buyerOrg?.name || buyerCompany?.name || null;
-  const buyerAddress=buyerOrg?.address || buyerCompany?.address || null;
-  const buyerCity=buyerOrg?.municipality || buyerCompany?.city || buyerCompany?.municipality || null;
-  const buyerMb=buyerOrg?.registration_number || buyerCompany?.registration_number || null;
-  const registrySource=buyerCompany?.registry_source || (buyerOrg ? "FiscalBox profil / PIB kupca" : null);
+  const buyerName=r.buyer_name || buyerOrg?.name || buyerCompany?.name || null;
+  const buyerAddress=r.buyer_address || buyerOrg?.address || buyerCompany?.address || null;
+  const buyerCity=r.buyer_city || buyerOrg?.municipality || buyerCompany?.city || buyerCompany?.municipality || null;
+  const buyerMb=r.buyer_registration_number || buyerOrg?.registration_number || buyerCompany?.registration_number || null;
+  const registrySource=r.buyer_registry_source || buyerCompany?.registry_source || (buyerOrg ? "FiscalBox profil / PIB kupca" : null);
   const registryChecked=buyerCompany?.registry_checked_at || buyerCompany?.nbs_last_check || null;
+
+  if(buyerPib && (buyerName || buyerMb || buyerAddress || buyerCity)){
+    const patch:any={buyer_pib:buyerPib};
+    if(buyerName)patch.buyer_name=buyerName;
+    if(buyerMb)patch.buyer_registration_number=buyerMb;
+    if(buyerAddress)patch.buyer_address=buyerAddress;
+    if(buyerCity)patch.buyer_city=buyerCity;
+    if(registrySource)patch.buyer_registry_source=registrySource;
+    await admin.from("receipts").update(patch).eq("id",r.id);
+  }
 
   const {data:accountantMembership}=await admin.from("organization_members")
     .select("role").eq("organization_id",r.organization_id).eq("user_id",user.id).maybeSingle();

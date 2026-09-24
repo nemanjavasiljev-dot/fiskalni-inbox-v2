@@ -62,10 +62,13 @@ function safeDate(v: unknown) {
 export function normalizePib(v: unknown) {
   const raw = String(v ?? "").trim();
   if (!raw) return null;
-  const match = raw.match(/(?:^|\D)(\d{9})(?:\D|$)/);
-  if (match) return match[1];
+  const labeled = raw.match(/(?:^|\D)(\d{9})(?:\D|$)/);
+  if (labeled) return labeled[1];
   const digits = raw.replace(/\D/g, "");
-  return digits.length === 9 ? digits : raw;
+  if (digits.length === 9) return digits;
+  // eFiskalizacija BuyerId ponekad stigne sabijen kao 10 + PIB bez separatora.
+  if (digits.length === 11 && digits.startsWith("10")) return digits.slice(2);
+  return null;
 }
 
 const PAYMENT_TYPES: Record<string,string> = {
@@ -95,17 +98,38 @@ export function verificationStatus(rawStatus: unknown) {
   return {text:s,valid:null as boolean|null};
 }
 
-function buyerPibFromJournal(journal: unknown) {
-  const text = String(journal ?? "");
+function buyerPibFromText(value: unknown) {
+  const text = String(value ?? "");
   if (!text.trim()) return null;
+  const patterns = [
+    /(?:ID\s*kupca|ИД\s*купца|Buyer\s*ID|BuyerId|BuyerIdentification)\s*[:：=]\s*(?:10\s*[:：\-\s]\s*)?(\d{9})(?!\d)/i,
+    /(?:^|\D)10\s*[:：\-]\s*(\d{9})(?!\d)/m,
+    /(?:^|\D)10(\d{9})(?!\d)/m,
+  ];
+  for (const re of patterns) {
+    const hit = text.match(re);
+    if (hit) return hit[1];
+  }
+  return null;
+}
 
-  // eFiskalizacija journal često prikazuje kupca kao: "ID kupca: 10:114814160".
-  // Prefiks 10 označava poreski identifikator, dok je narednih 9 cifara PIB.
-  const labeled = text.match(/(?:ID\s*kupca|ИД\s*купца|Buyer\s*ID)\s*[:：]\s*(?:10\s*[:：]\s*)?(\d{9})(?!\d)/i);
-  if (labeled) return labeled[1];
-
-  const typed = text.match(/(?:^|\s)10\s*[:：]\s*(\d{9})(?!\d)/m);
-  return typed ? typed[1] : null;
+export function extractBuyerPib(raw: unknown) {
+  const entries = allEntries(raw);
+  const directKeys = new Set([
+    "buyertin","buyerid","buyerpib","buyeridentification","buyeridentificationnumber",
+    "buyeridentifier","customerid","customerpib","pibkupca","idkupca"
+  ]);
+  for (const [k,v] of entries) {
+    if (!directKeys.has(k)) continue;
+    const pib = normalizePib(v) || buyerPibFromText(v);
+    if (pib) return pib;
+  }
+  for (const [,v] of entries) {
+    if (typeof v !== "string" && typeof v !== "number") continue;
+    const pib = buyerPibFromText(v);
+    if (pib) return pib;
+  }
+  return null;
 }
 
 export function normalizeVerification(raw: unknown) {
@@ -122,9 +146,10 @@ export function normalizeVerification(raw: unknown) {
 
   const journal = String(pickScalar(e,["journal","invoicejournal"]) || "") || null;
   const directBuyerPib = normalizePib(pickScalar(e, [
-    "buyertin", "buyerid", "buyerpib", "buyeridentification", "buyeridentificationnumber"
+    "buyertin", "buyerid", "buyerpib", "buyeridentification", "buyeridentificationnumber",
+    "buyeridentifier", "customerid", "customerpib", "pibkupca", "idkupca"
   ]));
-  const buyerPib = directBuyerPib || buyerPibFromJournal(journal);
+  const buyerPib = directBuyerPib || buyerPibFromText(journal) || extractBuyerPib(raw);
 
   return {
     verification_status_text: status.text,
