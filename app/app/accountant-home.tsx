@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { Archive, Bell, CalendarDays, Download, FileCheck2, FileText, Plus, ReceiptText, Search, Settings, Users, X } from "lucide-react";
+import { Archive, Bell, CalendarDays, FileCheck2, FileText, Plus, ReceiptText, Search, Settings, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import BrandWordmark from "@/components/BrandWordmark";
 import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
@@ -25,6 +25,8 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const [inviteContact,setInviteContact]=React.useState("");
   const [inviteBusy,setInviteBusy]=React.useState(false);
   const [inviteMessage,setInviteMessage]=React.useState("");
+  const [intakeBusy,setIntakeBusy]=React.useState<"receipts"|"documents"|null>(null);
+  const [intakeMessage,setIntakeMessage]=React.useState("");
   const start=monthStart();
   const settings=context?.userSettings||{notify_new_receipts:true,notify_new_documents:true,notify_deadlines:true};
   const receiptStatus: Map<string,any>=new Map((overview.receiptStatuses||[]).map((s:any)=>[String(s.receipt_id),s]));
@@ -33,8 +35,8 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const periodDocuments=(overview.documents||[]).filter((d:any)=>period==="total"||inMonth(d.sent_at||d.created_at,start));
   const newReceipts=periodReceipts.filter((r:any)=>!receiptStatus.get(String(r.id))?.opened_at).length;
   const newDocuments=periodDocuments.filter((d:any)=>!documentStatus.get(String(d.id))?.opened_at).length;
-  const downloadedReceipts=(overview.receiptStatuses||[]).filter((s:any)=>s.downloaded_at&&(period==="total"||inMonth(s.downloaded_at,start))).length;
-  const downloadedDocuments=(overview.documentStatuses||[]).filter((s:any)=>s.downloaded_at&&(period==="total"||inMonth(s.downloaded_at,start))).length;
+  const assignedReceipts=(overview.receiptStatuses||[]).filter((s:any)=>s.opened_at&&(period==="total"||inMonth(s.opened_at,start))).length;
+  const assignedDocuments=(overview.documentStatuses||[]).filter((s:any)=>s.opened_at&&(period==="total"||inMonth(s.opened_at,start))).length;
   const allUnreadDocs=(overview.documents||[]).filter((d:any)=>!documentStatus.get(String(d.id))?.opened_at);
   const allUnreadReceipts=(overview.receipts||[]).filter((r:any)=>!receiptStatus.get(String(r.id))?.opened_at);
   const connectionRequests=context?.incomingConnectionRequests||[];
@@ -43,13 +45,11 @@ export default function AccountantHome({profile,organizations,overview,context}:
 
   const clientStats=organizations.map((o:any)=>{
     const id=String(o.organization_id);
-    const receipts=(overview.receipts||[]).filter((r:any)=>String(r.organization_id)===id&&(period==="total"||inMonth(r.sdc_time||r.created_at,start)));
-    const docs=(overview.documents||[]).filter((d:any)=>String(d.organization_id)===id&&(period==="total"||inMonth(d.sent_at||d.created_at,start)));
-    const newR=receipts.filter((r:any)=>!receiptStatus.get(String(r.id))?.opened_at).length;
-    const newD=docs.filter((d:any)=>!documentStatus.get(String(d.id))?.opened_at).length;
+    const receipts=(overview.receipts||[]).filter((r:any)=>String(r.organization_id)===id&&Boolean(receiptStatus.get(String(r.id))?.opened_at)&&(period==="total"||inMonth(r.sdc_time||r.created_at,start)));
+    const docs=(overview.documents||[]).filter((d:any)=>String(d.organization_id)===id&&Boolean(documentStatus.get(String(d.id))?.opened_at)&&(period==="total"||inMonth(d.sent_at||d.created_at,start)));
     const vat=receipts.reduce((sum:number,r:any)=>sum+Number(r.total_tax||0),0);
-    return {...o,receiptCount:receipts.length,documentCount:docs.length,newR,newD,vat};
-  }).sort((a:any,b:any)=>(b.newR+b.newD)-(a.newR+a.newD));
+    return {...o,receiptCount:receipts.length,documentCount:docs.length,vat};
+  }).sort((a:any,b:any)=>(b.receiptCount+b.documentCount)-(a.receiptCount+a.documentCount)||String(a.name||"").localeCompare(String(b.name||""),"sr"));
   const q=query.trim().toLowerCase();
   const filteredClients=clientStats.filter((c:any)=>!q||String(c.name||"").toLowerCase().includes(q)||String(c.pib||"").includes(q));
 
@@ -66,6 +66,28 @@ export default function AccountantHome({profile,organizations,overview,context}:
     setInviteMessage(d.message||"Zahtev je poslat klijentu.");
     setInviteContact("");
     router.refresh();
+  }
+
+  async function assignAll(type:"receipts"|"documents") {
+    setIntakeBusy(type);
+    setIntakeMessage("");
+    try {
+      const r=await fetch("/api/accountant/intake/assign-all",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({type,month:period==="month"?currentMonthKey():null})
+      });
+      const d=await r.json();
+      if(!r.ok){setIntakeMessage(d.error||"Prijem nije mogao da se obradi.");return;}
+      const label=type==="receipts"?"računa":"dokumenata";
+      const details=(d.breakdown||[]).map((x:any)=>`${x.name}: ${x.count}`).join(" · ");
+      setIntakeMessage(d.assigned>0?`Raspoređeno ${d.assigned} ${label}${details?` — ${details}`:""}`:`Nema novih ${label} za raspoređivanje.`);
+      router.refresh();
+    } catch {
+      setIntakeMessage("Prijem trenutno nije mogao da se obradi.");
+    } finally {
+      setIntakeBusy(null);
+    }
   }
 
   async function reviewConnection(id:string,decision:"approve"|"reject"){
@@ -91,14 +113,14 @@ export default function AccountantHome({profile,organizations,overview,context}:
 
       {connectionRequests.length>0&&<div className="card company-requests-card connection-request-card"><div className="section-title"><div><span className="pill">NOVI ZAHTEVI</span><h3>Klijenti koji žele povezivanje</h3></div></div><div className="company-request-list">{connectionRequests.map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.sender_organization?.name||"Firma"}</b><span>Poslala je zahtev putem {r.channel==="sms"?"SMS-a":"emaila"}. Prihvatite da se firma doda u vaše klijente.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewConnection(r.id,"approve")}>Prihvati</button><button className="btn" onClick={()=>reviewConnection(r.id,"reject")}>Odbij</button></div></div>)}</div></div>}
 
-      <div className="grid accountant-summary-grid"><SummaryCard icon={<FileText/>} label="Novi dokumenti" value={newDocuments} note="neotvoreni"/><SummaryCard icon={<ReceiptText/>} label="Novi računi" value={newReceipts} note="neotvoreni"/><SummaryCard icon={<Download/>} label="Preuzeti računi" value={downloadedReceipts} note={period==="month"?"ovog meseca":"ukupno"}/><SummaryCard icon={<FileCheck2/>} label="Preuzeti dokumenti" value={downloadedDocuments} note={period==="month"?"ovog meseca":"ukupno"}/></div>
+      <div className="grid accountant-summary-grid"><SummaryCard icon={<FileText/>} label="Novi dokumenti" value={newDocuments} note="čeka raspoređivanje"/><SummaryCard icon={<ReceiptText/>} label="Novi računi" value={newReceipts} note="čeka raspoređivanje"/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni računi" value={assignedReceipts} note={period==="month"?"ovog meseca":"ukupno"}/><SummaryCard icon={<FileCheck2/>} label="Raspoređeni dokumenti" value={assignedDocuments} note={period==="month"?"ovog meseca":"ukupno"}/></div>
 
-      <section className="accountant-section"><div className="section-title"><div><span className="pill">PRIJEM</span><h2>Računi i dokumenti klijenata</h2><p className="muted">Jednim klikom preuzmite kompletan prijem za tekući mesec. ZIP je organizovan po klijentima.</p></div></div><div className="grid accountant-summary-grid"><div className="card accountant-summary-card"><div className="accountant-summary-icon"><ReceiptText/></div><div style={{flex:1}}><span>Fiskalni računi</span><strong>{periodReceipts.length}</strong><small>{newReceipts} novih</small><a className="btn btn-primary" style={{marginTop:10}} href={`/api/accountant/download-all?type=receipts&month=${currentMonthKey()}`} target="_blank"><Download size={15}/> Preuzmi sve račune</a></div></div><div className="card accountant-summary-card"><div className="accountant-summary-icon"><FileText/></div><div style={{flex:1}}><span>Dokumenti</span><strong>{periodDocuments.length}</strong><small>{newDocuments} novih</small><a className="btn btn-primary" style={{marginTop:10}} href={`/api/accountant/download-all?type=documents&month=${currentMonthKey()}`} target="_blank"><Download size={15}/> Preuzmi sve dokumente</a></div></div></div></section>
+      <section className="accountant-section"><div className="section-title"><div><span className="pill">PRIJEM</span><h2>Računi i dokumenti klijenata</h2><p className="muted">Dugmad ispod ne preuzimaju fajlove. Ona primaju nove stavke i automatski ih raspoređuju odgovarajućim klijentima. Preuzimanje i štampa rade se tek unutar konkretnog klijenta.</p></div></div>{intakeMessage&&<div className="demo-box" style={{marginBottom:12}}>{intakeMessage}</div>}<div className="grid accountant-summary-grid"><div className="card accountant-summary-card"><div className="accountant-summary-icon"><ReceiptText/></div><div style={{flex:1}}><span>Fiskalni računi</span><strong>{periodReceipts.length}</strong><small>{newReceipts} novih</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("receipts")} disabled={intakeBusy!==null||newReceipts===0}><FileCheck2 size={15}/> {intakeBusy==="receipts"?"Raspoređujem…":"Preuzmi sve račune"}</button></div></div><div className="card accountant-summary-card"><div className="accountant-summary-icon"><FileText/></div><div style={{flex:1}}><span>Dokumenti</span><strong>{periodDocuments.length}</strong><small>{newDocuments} novih</small><button className="btn btn-primary" style={{marginTop:10}} onClick={()=>assignAll("documents")} disabled={intakeBusy!==null||newDocuments===0}><FileCheck2 size={15}/> {intakeBusy==="documents"?"Raspoređujem…":"Preuzmi sve dokumente"}</button></div></div></div></section>
 
       {settings.notify_deadlines&&<div className="grid deadline-grid"><div className="card deadline-card"><CalendarDays/><div><span>Obračun prethodnog meseca</span><b>do 10. u mesecu</b><small>{previousMonthLabel()} → {dueDate(10)}</small></div></div><div className="card deadline-card"><FileText/><div><span>Fakture</span><b>do 10. u mesecu</b><small>rok {dueDate(10)}</small></div></div><div className="card deadline-card"><ReceiptText/><div><span>PDV prijava</span><b>15. u mesecu</b><small>rok {dueDate(15)}</small></div></div></div>}
 
       <section className="accountant-section" id="clients"><div className="section-title accountant-client-title"><div><span className="pill"><Users size={13}/> KLIJENTI</span><h2>Klijenti i primljena dokumentacija</h2></div><div className="actions"><button className="btn btn-primary" onClick={()=>setAddOpen(true)}><Plus size={16}/> Pošalji zahtev</button></div></div><div className="accountant-client-tools"><div className="accountant-client-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pretraži po nazivu ili PIB-u"/></div><span className="muted">{filteredClients.length} / {organizations.length} klijenata</span></div>
-      <div className="grid accountant-client-grid">{filteredClients.map((c:any)=><a className="card accountant-client-card" href={`/app/accountant/clients/${c.organization_id}`} key={c.organization_id}><div className="client-card-identity"><ClientLogo organization={c}/><div className="accountant-client-top"><div><h3>{c.name}</h3><span>PIB {c.pib||"—"}</span></div>{(c.newR+c.newD)>0&&<span className="new-counter">{c.newR+c.newD} novo</span>}</div></div><div className="accountant-client-kpis"><div><span>Računi</span><b>{c.receiptCount}</b><small>{c.newR} novih</small></div><div><span>Dokumenti</span><b>{c.documentCount}</b><small>{c.newD} novih</small></div><div><span>Ulazni PDV</span><b>{money(c.vat)}</b><small>fiskalni računi</small></div></div><div className="client-open">Otvori klijenta / mesečnu arhivu →</div></a>)}{filteredClients.length===0&&<div className="card empty-client-search">Nema klijenta za zadatu pretragu.</div>}</div></section>
+      <div className="grid accountant-client-grid">{filteredClients.map((c:any)=><a className="card accountant-client-card" href={`/app/accountant/clients/${c.organization_id}`} key={c.organization_id}><div className="client-card-identity"><ClientLogo organization={c}/><div className="accountant-client-top"><div><h3>{c.name}</h3><span>PIB {c.pib||"—"}</span></div></div></div><div className="accountant-client-kpis"><div><span>Računi</span><b>{c.receiptCount}</b><small>raspoređeno klijentu</small></div><div><span>Dokumenti</span><b>{c.documentCount}</b><small>raspoređeno klijentu</small></div><div><span>Ulazni PDV</span><b>{money(c.vat)}</b><small>fiskalni računi</small></div></div><div className="client-open">Otvori klijenta / preuzimanje / štampa →</div></a>)}{filteredClients.length===0&&<div className="card empty-client-search">Nema klijenta za zadatu pretragu.</div>}</div></section>
 
       <section className="accountant-section"><div className="section-title"><div><span className="pill"><Archive size={13}/> PDV PREGLED</span><h2>Ulazni PDV po klijentu</h2></div></div><div className="card vat-table"><div className="table-wrap"><table><thead><tr><th>Klijent</th><th>Računi</th><th>PDV sa fiskalnih računa</th><th></th></tr></thead><tbody>{filteredClients.map((c:any)=><tr key={c.organization_id}><td><b>{c.name}</b></td><td>{c.receiptCount}</td><td><b>{money(c.vat)}</b></td><td><a className="btn" href={`/app/accountant/clients/${c.organization_id}`}>Pregled / arhiva</a></td></tr>)}</tbody></table></div></div></section>
     </main></div>

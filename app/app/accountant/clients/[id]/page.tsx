@@ -28,5 +28,10 @@ export default async function AccountantClientPage({params,searchParams}:{params
     supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id).eq("organization_id",id)
   ]);
 
-  return <ClientWorkspace organization={org} selectedMonth={selectedMonth} receipts={receipts||[]} documents={documents||[]} receiptStatuses={receiptStatuses||[]} documentStatuses={documentStatuses||[]}/>;
+  const assignedReceiptIds=new Set((receiptStatuses||[]).filter((s:any)=>s.opened_at).map((s:any)=>String(s.receipt_id)));
+  const assignedDocumentIds=new Set((documentStatuses||[]).filter((s:any)=>s.opened_at).map((s:any)=>String(s.document_id)));
+  const assignedReceipts=(receipts||[]).filter((r:any)=>assignedReceiptIds.has(String(r.id)));
+  const assignedDocuments=(documents||[]).filter((d:any)=>assignedDocumentIds.has(String(d.id)));
+
+  return <ClientWorkspace organization={org} selectedMonth={selectedMonth} receipts={assignedReceipts} documents={assignedDocuments} receiptStatuses={receiptStatuses||[]} documentStatuses={documentStatuses||[]}/>;
 }

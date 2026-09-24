@@ -1,4 +1,4 @@
-const CACHE='fiscalbox-public-v5';
+const CACHE='fiscalbox-public-v6';
 const PUBLIC_SHELL=['/manifest.webmanifest','/icons/icon-192.png','/icons/icon-512.png'];
 
 self.addEventListener('install',event=>{
@@ -31,9 +31,25 @@ self.addEventListener('fetch',event=>{
 });
 
 self.addEventListener('push',event=>{
-  let data={title:'FiscalBox',body:'Imate novu poruku.',url:'/app'};
+  let data={title:'FiscalBox',body:'Imate novo obaveštenje.',url:'/app',tag:'fiscalbox'};
   try{data={...data,...event.data.json()}}catch{}
-  event.waitUntil(self.registration.showNotification(data.title,{body:data.body,icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',data:{url:data.url||'/app'}}));
+  const options={
+    body:data.body,
+    icon:'/icons/icon-192.png',
+    badge:'/icons/icon-192.png',
+    tag:data.tag||'fiscalbox',
+    renotify:true,
+    requireInteraction:false,
+    timestamp:Date.now(),
+    data:{url:data.url||'/app'}
+  };
+  event.waitUntil((async()=>{
+    const openClients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+    for(const client of openClients){
+      try{client.postMessage({type:'fiscalbox:push',payload:data});}catch{}
+    }
+    await self.registration.showNotification(data.title,options);
+  })());
 });
 
 self.addEventListener('notificationclick',event=>{

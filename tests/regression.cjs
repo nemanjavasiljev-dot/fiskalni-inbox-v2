@@ -155,7 +155,7 @@ test('SOAP bez PIB-a nije potvrđena kompanija',()=>{
 });
 test('MERGE 5.9.1: bank/IPS i ZIP funkcije su zadržane',()=>{
  const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
- assert.equal(pkg.version,'5.9.1');
+ assert.ok(String(pkg.version).startsWith('5.9.1'));
  assert.ok(pkg.dependencies.jszip);
  assert.ok(fs.existsSync(path.join(root,'lib/ips-payment.ts')));
  assert.ok(fs.existsSync(path.join(root,'lib/bank-reconciliation.ts')));

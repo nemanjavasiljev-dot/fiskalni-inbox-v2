@@ -1,6 +1,6 @@
 {
   "name": "fiscalbox-app",
-  "version": "5.9.1.1",
+  "version": "5.9.1.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/regression.cjs",
     "check:syntax": "node scripts/check-syntax.cjs",
-    "test:registry-live": "node tests/registry-live.mjs"
+    "test:registry-live": "node tests/registry-live.mjs",
+    "vapid:generate": "node -e \"console.log(require('web-push').generateVAPIDKeys())\""
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

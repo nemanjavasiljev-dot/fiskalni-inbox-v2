@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeEmail, normalizePhone, requestMatchesRecipient } from '@/lib/connection-requests';
+import { sendPushToOrganization } from '@/lib/push-delivery';
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
   const {id}=await params;
@@ -42,5 +43,10 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
     p_request:id,p_actor:user.id,p_recipient:recipientOrg.id,p_decision:decision
   });
   if(error)return NextResponse.json({error:'Zahtev nije obrađen. Osvežite stranicu i pokušajte ponovo.'},{status:409});
+  await sendPushToOrganization(admin,String(req.sender_organization_id),{
+    title:decision==='approve'?'Zahtev prihvaćen':'Zahtev odbijen',
+    body:`${recipientOrg.name||'Primalac'} je ${decision==='approve'?'prihvatio':'odbio'} zahtev za povezivanje.`,
+    url:'/app',tag:`connection-response-${id}`
+  }).catch(()=>{});
   return NextResponse.json({ok:true,message:decision==='approve'?'Povezivanje je odobreno.':'Zahtev je odbijen.'});
 }

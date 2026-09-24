@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireMaster } from '@/lib/master-auth';
 import { settleProforma } from '@/lib/billing';
+import { sendPushToOrganization } from '@/lib/push-delivery';
 
 export async function POST(request:Request){
   const ctx=await requireMaster();if(!ctx.ok)return NextResponse.json({error:ctx.error},{status:ctx.status});
@@ -17,6 +18,9 @@ export async function POST(request:Request){
   if(String(tx.currency||'RSD').toUpperCase()!=='RSD'||Math.abs(Number(tx.amount||0)-Number(proforma.total_amount||0))>=0.01)return NextResponse.json({error:'Iznos transakcije ne odgovara iznosu predračuna.'},{status:409});
   try{
     const result=await settleProforma({admin:ctx.admin,proformaId,bankTransactionId:transactionId,verifiedBy:ctx.user.id,verificationSource:'MASTER_BANK_MATCH',paidAt:tx.booked_at||new Date().toISOString(),appBillingUrl:`${new URL(request.url).origin}/app/billing`});
+    if(proforma.organization_id){
+      await sendPushToOrganization(ctx.admin,String(proforma.organization_id),{title:'Uplata je potvrđena',body:'Pretplata je aktivirana i finalni račun je dostupan u Moji računi → Plaćeno.',url:'/app/billing',tag:`payment-${proforma.id}`}).catch(()=>{});
+    }
     return NextResponse.json({ok:true,invoice:result.invoice,message:'Uplata je verifikovana, finalni račun je izdat i pretplata aktivirana.'});
   }catch(e:any){return NextResponse.json({error:e?.message||'Rasknjižavanje nije uspelo.'},{status:400});}
 }

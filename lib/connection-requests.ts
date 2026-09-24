@@ -1,5 +1,6 @@
 import { sendConnectionRequestEmail } from '@/lib/mailer';
 import { sendSms } from '@/lib/sms';
+import { sendPushToOrganization } from '@/lib/push-delivery';
 
 export type OrganizationKind='company'|'accounting';
 export type InviteChannel='email'|'sms';
@@ -131,6 +132,13 @@ export async function createConnectionRequest(opts:{
   }
 
   await admin.from('connection_requests').update({sent_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',requestRow.id);
+  if(targetOrg?.id){
+    await sendPushToOrganization(admin,String(targetOrg.id),{
+      title:'Novi zahtev za povezivanje',
+      body:`${senderOrg.name} vam je poslao zahtev. Otvorite FiscalBox i prihvatite ili odbijte zahtev.`,
+      url:'/app',tag:`connection-${requestRow.id}`
+    }).catch(()=>{});
+  }
   return {id:requestRow.id,channel,contact:email||phone,targetFound:Boolean(targetOrg),targetOrganizationId:targetOrg?.id||null,expiresAt};
 }
 

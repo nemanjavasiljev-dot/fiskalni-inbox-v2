@@ -25,6 +25,16 @@ export async function sendConnectionRequestEmail(opts:{to:string;senderName:stri
   });
 }
 
+
+export async function sendRegistrationVerificationEmail(opts:{to:string;username:string;verifyUrl:string;magic?:boolean}){
+  const title=opts.magic?'Potvrdite email i otvorite FiscalBox':'Potvrdite FiscalBox nalog';
+  return sendEmail({
+    to:opts.to,
+    subject:`${title} · FiscalBox`,
+    html:`<div style="font-family:Arial,sans-serif;line-height:1.55;color:#17221E;max-width:620px;margin:auto"><h2 style="margin-bottom:8px">${title}</h2><p>Poštovani,</p><p>FiscalBox nalog <strong>${escapeHtml(opts.username)}</strong> je kreiran za ovu email adresu.</p><p>Da biste aktivirali nalog i potvrdili email, kliknite na dugme:</p><p style="margin:24px 0"><a href="${escapeHtml(opts.verifyUrl)}" style="display:inline-block;padding:13px 20px;background:#0D382B;color:#fff;text-decoration:none;border-radius:10px;font-weight:700">Potvrdi email i aktiviraj nalog</a></p><p style="font-size:12px;color:#68736e">Ako niste kreirali FiscalBox nalog, zanemarite ovu poruku.</p><p style="font-size:12px;color:#68736e;word-break:break-all">Ako dugme ne radi, otvorite: ${escapeHtml(opts.verifyUrl)}</p></div>`
+  });
+}
+
 export async function sendBillingInvoiceEmail(opts:{to:string;organizationName:string;invoiceNumber:string;plan:string;totalAmount:number;billingUrl:string;pdf:Buffer;documentType?:'proforma'|'invoice'}){
   const isInvoice=opts.documentType==='invoice';
   const label=isInvoice?'račun':'predračun';

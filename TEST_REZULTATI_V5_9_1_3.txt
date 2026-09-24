@@ -1,0 +1,7 @@
+FiscalBox V5.9.1.3
+- Windows Web Push / Service Worker runtime dodat
+- 5s in-app toast dole desno dodat
+- automatsko obnavljanje push pretplate kada je dozvola već data
+- custom Resend verifikacija registracije dodata
+- resend verifikacionog emaila dodat na login
+- push događaji: connection request, response, receipt send, document send, payment confirmation
