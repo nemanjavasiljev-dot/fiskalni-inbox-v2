@@ -26,7 +26,7 @@ export default function AccountantDesktopMenu({
     { href: "/app#clients", label: "Moji klijenti", icon: BriefcaseBusiness, active: false },
     { href: "/app/billing", label: "Moji računi", icon: FileText, active: pathname === "/app/billing" },
     { href: "/app/subscription", label: "Pretplata", icon: CreditCard, active: pathname === "/app/subscription" },
-    { href: "/app/accountant/settings?tab=notifications", label: "Notifikacije", icon: Bell, active: pathname.includes("/accountant/settings") },
+    { href: "/app/notifications", label: "Notifikacije", icon: Bell, active: pathname === "/app/notifications" },
     ...(isAdmin ? [{ href: "/app/accountant/settings?tab=staff", label: "Moji zaposleni", icon: Users, active: false }] : []),
     { href: "/app/accountant/settings?tab=profile", label: "Podešavanja", icon: Settings, active: false },
     { href: "/app/accountant/settings?tab=install", label: "Instaliraj app", icon: Download, active: false }
@@ -37,7 +37,7 @@ export default function AccountantDesktopMenu({
     <div className="accountant-mobile-topbar">
       <button type="button" className="accountant-mobile-menu-inline" onClick={()=>setMobileOpen(true)}><Menu size={20}/><span>Meni</span></button>
       <a href="/app" className="accountant-mobile-brand"><span className="accountant-mobile-logo">F</span><BrandWordmark suffix=" · KNJIGO"/></a>
-      {onNotificationsClick?<button type="button" className="accountant-mobile-bell" onClick={onNotificationsClick} aria-label="Notifikacije"><Bell size={18}/>{notificationCount>0&&<span>{notificationCount}</span>}</button>:<a className="accountant-mobile-bell" href="/app/accountant/settings?tab=notifications" aria-label="Notifikacije"><Bell size={18}/></a>}
+      {onNotificationsClick?<button type="button" className="accountant-mobile-bell" onClick={onNotificationsClick} aria-label="Notifikacije"><Bell size={18}/>{notificationCount>0&&<span>{notificationCount}</span>}</button>:<a className="accountant-mobile-bell" href="/app/notifications" aria-label="Notifikacije"><Bell size={18}/></a>}
     </div>
 
     <aside className={`accountant-desktop-menu accountant-super-menu ${mobileOpen?"mobile-open":""}`}>
