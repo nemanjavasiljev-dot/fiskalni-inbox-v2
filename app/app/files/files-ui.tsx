@@ -146,7 +146,7 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
       <div className="app-head files-head"><div><span className="pill">{isAccountant ? "DOKUMENTI KLIJENTA" : "FAJLOVI"}</span><h1 className="company-name-heading">{activeOrg.name}</h1><p className="muted">{isAccountant ? "Dokumenti koje vam je klijent poslao." : "Skenirajte, fotografišite ili dodajte dokument i prosledite ga knjigovođi."}</p></div><div className="actions">{organizations.length>1 && <select className="select" value={activeOrg.organization_id} onChange={e=>router.push(`/app/files?org=${e.target.value}`)}>{organizations.map((o:any)=><option key={o.organization_id} value={o.organization_id}>{o.name}</option>)}</select>}</div></div>
 
       {!isAccountant && <div className="grid file-action-grid">
-        <button className="card file-action" onClick={()=>setScanDocument(true)} disabled={busy}><FileText/><div><b>Skeniraj dokument</b><span>Otvori kameru i snimi dokument</span></div></button>
+        <button className="card file-action" onClick={()=>setScanDocument(true)} disabled={busy}><FileText/><div><b>Skeniraj dokument</b><span>Automatski sken: ivice, krop i perspektiva</span></div></button>
         <button className="card file-action" onClick={()=>photoInput.current?.click()} disabled={busy}><Camera/><div><b>Fotografiši</b><span>Dodaj fotografiju računa ili dokumenta</span></div></button>
         <button className="card file-action" onClick={()=>uploadInput.current?.click()} disabled={busy}><Upload/><div><b>Dodaj fajl</b><span>PDF, Word, Excel, XML, CSV, slike…</span></div></button>
         <input ref={photoInput} hidden type="file" accept="image/*" capture="environment" onChange={e=>prepareUpload(e.target.files,"camera")}/>

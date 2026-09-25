@@ -535,3 +535,23 @@ a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}.
   .accountant-mobile-account-avatar{width:43px;height:43px;border-radius:13px;background:#e9f4ee;color:var(--green);display:grid;place-items:center;font-weight:950;font-size:17px;flex:0 0 auto}
   .accountant-mobile-account-copy{min-width:0;display:grid;gap:2px;flex:1}.accountant-mobile-account-copy small{font-size:8px;color:#2b7a60;font-weight:900;letter-spacing:.05em}.accountant-mobile-account-copy b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.accountant-mobile-account-card>svg{color:#50655c;flex:0 0 auto}
 }
+
+/* V5.9.3.1 — QR 2.0 + pravi skener dokumenta */
+.qr-autozoom{position:absolute;left:14px;top:14px;z-index:4;display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:rgba(7,55,42,.78);color:#fff;font-size:11px;font-weight:800;backdrop-filter:blur(8px)}
+.qr-engine{top:auto!important;bottom:48px!important}
+.qr-zoom-control{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;margin:10px 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:13px;background:#f8fbf9;font-size:12px;color:var(--muted)}
+.qr-zoom-control input{width:100%;accent-color:var(--green)}
+.qr-zoom-control b{color:var(--ink);min-width:36px;text-align:right}
+.document-detected-outline{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+.document-detected-outline polygon{fill:rgba(206,246,103,.08);stroke:#CEF667;stroke-width:.7;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 5px rgba(206,246,103,.5))}
+.document-scan-state{position:absolute;left:14px;top:14px;z-index:4;display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:800;backdrop-filter:blur(8px)}
+.document-scan-state.ready{background:rgba(13,92,67,.92);color:#efffd0}
+.document-camera-guide{border-style:solid;border-color:rgba(255,255,255,.25)}
+.document-camera-guide>span{z-index:5}
+@media(max-width:520px){
+  .qr-autozoom{left:10px;top:10px;font-size:10px;padding:6px 8px}
+  .qr-torch{right:10px;top:10px}
+  .qr-zoom-control{grid-template-columns:1fr auto}.qr-zoom-control>span{grid-column:1/-1}
+  .document-scan-state{left:10px;top:10px}
+}
+.qr-camera-box video{transition:transform .22s ease;transform-origin:center center}
