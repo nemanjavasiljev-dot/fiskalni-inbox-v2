@@ -1,0 +1,11 @@
+FiscalBox V5.9.3.2
+- TypeScript/TSX syntax files: 174
+- Syntax errors: 0
+- QR auto-zoom lock: implemented
+- Fullscreen scanner portal: implemented
+- Duplicate QR check: implemented
+- Duplicate receipt fingerprint DB guard: implemented
+- Buyer PIB confirmation gate: implemented
+- Missing PIB bookkeeping flag: implemented
+- VAT AI missing PIB rule: implemented
+- Full regression: not executed locally because web-push node module is not installed in this runtime

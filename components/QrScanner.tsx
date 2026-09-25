@@ -1,7 +1,7 @@
 "use client";
 
 import jsQR from "jsqr";
-import { Clipboard, ExternalLink, Flashlight, ImagePlus, RefreshCw, ScanLine, ZoomIn } from "lucide-react";
+import { AlertTriangle, Clipboard, ExternalLink, Flashlight, ImagePlus, Pause, Play, RefreshCw, ScanLine, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type BarcodeDetectorLike = {
@@ -127,6 +127,8 @@ export default function QrScanner({ organizationId, onDone }:{
   const [torchOn,setTorchOn] = useState(false);
   const [zoomAvailable,setZoomAvailable] = useState(false);
   const [zoomLevel,setZoomLevel] = useState(1);
+  const [autoZoomPaused,setAutoZoomPaused] = useState(false);
+  const [pendingNoPib,setPendingNoPib] = useState<{qr:string;preview?:any}|null>(null);
   const [engine,setEngine] = useState("Pripremam QR engine…");
   const detectedKind = useMemo(()=>detected ? qrKind(detected) : "",[detected]);
 
@@ -159,6 +161,7 @@ export default function QrScanner({ organizationId, onDone }:{
 
   function startAdaptiveAutoZoom(){
     clearAutoZoom();
+    setAutoZoomPaused(false);
     const caps=zoomCapsRef.current;
     const hardwareSteps=caps ? [1,1.25,1.5,1.8,2.2,2.8,3.5,caps.max]
       .map(v=>clamp(v,caps.min,caps.max)).filter((v,i,a)=>i===0||Math.abs(v-a[i-1])>.08) : [];
@@ -175,6 +178,17 @@ export default function QrScanner({ organizationId, onDone }:{
         setZoomLevel(Number((1/digitalCropRef.current).toFixed(1)));
       }
     },1250);
+  }
+
+  function toggleAutoZoom(){
+    if(autoZoomPaused){
+      setMessage("Auto-zoom je ponovo uključen. Zaustavite ga kada QR bude najbolje u kadru.");
+      startAdaptiveAutoZoom();
+      return;
+    }
+    clearAutoZoom();
+    setAutoZoomPaused(true);
+    setMessage(`Zoom je zaključan na ${zoomLevel.toFixed(1)}×. Ovo se smatra najboljom pozicijom za čitanje.`);
   }
 
   async function decodeZxing(canvas:HTMLCanvasElement) {
@@ -231,6 +245,8 @@ export default function QrScanner({ organizationId, onDone }:{
     setDetected("");
     setMessage("Pokrećem kameru…");
     setZoomLevel(1);
+    setAutoZoomPaused(false);
+    setPendingNoPib(null);
 
     async function start() {
       try {
@@ -355,7 +371,7 @@ export default function QrScanner({ organizationId, onDone }:{
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[restartKey]);
 
-  async function save(qr:string) {
+  async function save(qr:string, options?:{confirmWithoutBuyerPib?:boolean}) {
     if (savingRef.current) return;
     savingRef.current=true;
     setSaving(true);
@@ -374,11 +390,23 @@ export default function QrScanner({ organizationId, onDone }:{
     try {
       const r = await fetch("/api/receipts/scan",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({organization_id:organizationId,qr_url:qr})
+        body:JSON.stringify({organization_id:organizationId,qr_url:qr,confirm_without_buyer_pib:Boolean(options?.confirmWithoutBuyerPib)})
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Greška.");
-      setMessage(d.duplicate ? "Račun je već u bazi." : d.status==="provereno" ? "Račun je dodat i verifikovan kod Poreske uprave." : "Račun je dodat, ali verifikaciju treba proveriti.");
+      if(d.duplicate){
+        setMessage("Ovaj račun je već skeniran.");
+        savingRef.current=false;setSaving(false);
+        return;
+      }
+      if(d.needs_buyer_pib_confirmation){
+        setPendingNoPib({qr,preview:d.preview});
+        setMessage("Na fiskalnom računu nije pronađen ID/PIB kupca. Račun nije podoban za automatsku knjigovodstvenu/PDV obradu bez dodatne provere.");
+        savingRef.current=false;setSaving(false);
+        return;
+      }
+      setPendingNoPib(null);
+      setMessage(d.status==="provereno" ? "Račun je dodat i verifikovan kod Poreske uprave." : "Račun je dodat, ali verifikaciju treba proveriti.");
       setTimeout(()=>onDone(d),650);
     } catch(e:any) {
       setMessage(e.message || "Skeniranje nije uspelo.");
@@ -440,6 +468,8 @@ export default function QrScanner({ organizationId, onDone }:{
     setSaving(false);
     detectedRef.current="";
     setDetected("");
+    setPendingNoPib(null);
+    setAutoZoomPaused(false);
     processingRef.current = false;
     setRestartKey(v=>v+1);
   }
@@ -450,13 +480,15 @@ export default function QrScanner({ organizationId, onDone }:{
       <div className="qr-frame" aria-hidden="true"><span/><span/><span/><span/></div>
       <div className="camera-msg">{message}</div>
       <div className="qr-engine"><ScanLine size={13}/> {engine}</div>
-      <div className="qr-autozoom"><ZoomIn size={13}/> Auto-zoom {zoomLevel.toFixed(1)}×</div>
+      <button type="button" className={`qr-autozoom ${autoZoomPaused?"paused":""}`} onClick={toggleAutoZoom} aria-label={autoZoomPaused?"Nastavi auto-zoom":"Zaustavi auto-zoom"}>
+        {autoZoomPaused?<Play size={13}/>:<Pause size={13}/>} {autoZoomPaused?`Zoom zaključan ${zoomLevel.toFixed(1)}×`:`Auto-zoom ${zoomLevel.toFixed(1)}×`}
+      </button>
       {torchAvailable && <button type="button" className="qr-torch" onClick={toggleTorch} aria-label="Blic"><Flashlight size={18}/></button>}
     </div>
 
     {zoomAvailable && !detected && <div className="qr-zoom-control">
       <span>Ručno uvećanje</span>
-      <input type="range" min={zoomCapsRef.current?.min||1} max={zoomCapsRef.current?.max||1} step={zoomCapsRef.current?.step||.1} value={zoomLevel} onChange={e=>void applyZoom(Number(e.target.value))}/>
+      <input type="range" min={zoomCapsRef.current?.min||1} max={zoomCapsRef.current?.max||1} step={zoomCapsRef.current?.step||.1} value={zoomLevel} onChange={e=>{clearAutoZoom();setAutoZoomPaused(true);void applyZoom(Number(e.target.value));}}/>
       <b>{zoomLevel.toFixed(1)}×</b>
     </div>}
 
@@ -470,12 +502,19 @@ export default function QrScanner({ organizationId, onDone }:{
       </div>
     </div>}
 
+
+    {pendingNoPib && <div className="qr-pib-warning" role="alertdialog" aria-label="Račun bez PIB-a kupca">
+      <div className="qr-pib-warning-icon"><AlertTriangle size={22}/></div>
+      <div className="qr-pib-warning-copy"><b>Račun nema ID / PIB kupca</b><p>Na verifikovanom fiskalnom zapisu nije pronađen PIB firme kupca. Takav račun FiscalBox neće označiti kao podoban za automatsku knjigovodstvenu ili PDV obradu. Da li ipak želite da ga sačuvate u arhivu?</p>{pendingNoPib.preview?.merchant_name&&<small>{pendingNoPib.preview.merchant_name}{pendingNoPib.preview.total_amount!=null?` · ${Number(pendingNoPib.preview.total_amount).toLocaleString("sr-RS")} RSD`:""}</small>}</div>
+      <div className="qr-pib-warning-actions"><button type="button" className="btn" onClick={()=>{setPendingNoPib(null);restart();}}>Ne, skeniraj ponovo</button><button type="button" className="btn btn-primary" onClick={()=>save(pendingNoPib.qr,{confirmWithoutBuyerPib:true})}>Da, sačuvaj ipak</button></div>
+    </div>}
+
     <div className="qr-extra-actions">
       <button type="button" className="btn" onClick={()=>imageInputRef.current?.click()} disabled={saving}><ImagePlus size={16}/> Učitaj fotografiju QR-a</button>
       <input ref={imageInputRef} hidden type="file" accept="image/*" onChange={e=>scanImage(e.target.files?.[0])}/>
     </div>
 
-    <div className="scanner-info"><ScanLine size={16}/><span>QR 2.0 koristi nativni čitač, QR Worker, ZXing TRY-HARDER i jsQR multi-pass. Ako kamera podržava zoom, FiscalBox ga automatski menja dok ne pronađe kod; na ostalim uređajima koristi digitalni auto-zoom.</span></div>
+    <div className="scanner-info"><ScanLine size={16}/><span>QR 2.1 koristi nativni čitač, QR Worker, ZXing TRY-HARDER i jsQR multi-pass. Auto-zoom se menja dok ne pronađete najbolji kadar; dodirnite oznaku Auto-zoom da zaključate trenutni nivo uvećanja.</span></div>
 
     <div className="field"><label>Ručni unos fiskalnog QR linka</label><input className="input mono" value={manual} onChange={e=>setManual(e.target.value)} placeholder="https://suf.purs.gov.rs/..." /></div>
     <button className="btn btn-primary" style={{width:"100%",marginTop:10}} disabled={!manual||saving} onClick={()=>save(manual)}>Proveri i sačuvaj fiskalni račun</button>
