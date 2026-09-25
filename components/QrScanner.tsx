@@ -1,8 +1,8 @@
 "use client";
 
 import jsQR from "jsqr";
-import { AlertTriangle, Clipboard, ExternalLink, Flashlight, ImagePlus, Pause, Play, RefreshCw, ScanLine, ZoomIn } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, CircleAlert, FileCheck2, Flashlight, ImagePlus, Info, Pause, Play, RefreshCw, ScanLine, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 type BarcodeDetectorLike = {
   detect(source: ImageBitmapSource): Promise<Array<{ rawValue?: string }>>;
@@ -15,6 +15,42 @@ declare global {
 }
 
 type ZoomCaps = { min:number; max:number; step?:number } | null;
+
+type ReceiptStatus = {
+  validity:"waiting"|"valid"|"invalid"|"unconfirmed"|"not_fiscal";
+  buyerPib?:string|null;
+  vat:"waiting"|"yes"|"no"|"check";
+  note:string;
+  merchantName?:string|null;
+  totalAmount?:number|null;
+  duplicate?:boolean;
+};
+
+function validityFromStatus(status:unknown):ReceiptStatus["validity"]{
+  if(status==="provereno")return "valid";
+  if(status==="nevalidan")return "invalid";
+  return "unconfirmed";
+}
+
+function vatFromReceipt(receipt:any,aiAnalysis?:any):ReceiptStatus["vat"]{
+  if(receipt?.bookkeeping_eligible===false || !receipt?.buyer_pib)return "no";
+  const recommendation=String(aiAnalysis?.recommendation || receipt?.ai_vat_recommendation || "").toLowerCase();
+  if(recommendation==="da")return "yes";
+  if(recommendation==="ne")return "no";
+  return "check";
+}
+
+function vatFromResponse(status:unknown,buyerPib:unknown,receipt:any,aiAnalysis?:any):ReceiptStatus["vat"]{
+  if(status==="nevalidan")return "no";
+  if(!buyerPib)return "no";
+  if(status!=="provereno")return "check";
+  return vatFromReceipt(receipt,aiAnalysis);
+}
+
+function amountLabel(value:unknown){
+  const n=Number(value);
+  return Number.isFinite(n)?new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD",maximumFractionDigits:2}).format(n):"";
+}
 
 function isFiscalUrl(raw: string) {
   try {
@@ -129,8 +165,7 @@ export default function QrScanner({ organizationId, onDone }:{
   const [zoomLevel,setZoomLevel] = useState(1);
   const [autoZoomPaused,setAutoZoomPaused] = useState(false);
   const [pendingNoPib,setPendingNoPib] = useState<{qr:string;preview?:any}|null>(null);
-  const [engine,setEngine] = useState("Pripremam QR engine…");
-  const detectedKind = useMemo(()=>detected ? qrKind(detected) : "",[detected]);
+  const [receiptStatus,setReceiptStatus] = useState<ReceiptStatus|null>(null);
 
   function clearAutoZoom(){
     if(autoZoomTimerRef.current)clearInterval(autoZoomTimerRef.current);
@@ -247,6 +282,7 @@ export default function QrScanner({ organizationId, onDone }:{
     setZoomLevel(1);
     setAutoZoomPaused(false);
     setPendingNoPib(null);
+    setReceiptStatus(null);
 
     async function start() {
       try {
@@ -298,7 +334,7 @@ export default function QrScanner({ organizationId, onDone }:{
               if(core.DecodeHintType.ALSO_INVERTED!==undefined)hints.set(core.DecodeHintType.ALSO_INVERTED,true);
             }
             zxingRef.current=new mod.BrowserQRCodeReader(hints);
-            if(active)setEngine(detectorRef.current?"Native + QR Worker + ZXing":"QR Worker + ZXing");
+            
           }catch{}
         }).catch(()=>{});
 
@@ -306,7 +342,7 @@ export default function QrScanner({ organizationId, onDone }:{
           try{
             nimiqRef.current=mod.default;
             nimiqEngineRef.current=await mod.default.createQrEngine();
-            if(active)setEngine(detectorRef.current?"Native + QR Worker + ZXing":"QR Worker + ZXing");
+            
           }catch{}
         }).catch(()=>{});
 
@@ -327,11 +363,11 @@ export default function QrScanner({ organizationId, onDone }:{
         if (detectorRef.current) {
           const codes = await detectorRef.current.detect(v as any);
           const value = codes.find(c=>c.rawValue)?.rawValue?.trim();
-          if (value) { setEngine("Native BarcodeDetector"); await handleDetected(value); return; }
+          if (value) { await handleDetected(value); return; }
         }
 
         const decoded=await multiDecode(v,v.videoWidth,v.videoHeight,false);
-        if(decoded.value){setEngine(decoded.engine);await handleDetected(decoded.value);return;}
+        if(decoded.value){await handleDetected(decoded.value);return;}
       } catch {
         // Sledeći kadar automatski pokušava ponovo.
       } finally {
@@ -357,7 +393,8 @@ export default function QrScanner({ organizationId, onDone }:{
       if (isFiscalUrl(value)) {
         await save(value);
       } else {
-        setMessage(`QR je očitan (${qrKind(value)}). Nije fiskalni QR, zato nije upisan kao račun.`);
+        setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave."});
+        setMessage(`QR je očitan (${qrKind(value)}), ali nije fiskalni QR.`);
       }
     }
 
@@ -378,11 +415,13 @@ export default function QrScanner({ organizationId, onDone }:{
     detectedRef.current=qr;
     setDetected(qr);
     stopCamera();
+    setReceiptStatus(null);
     if (!organizationId) {
       setMessage("Prvo povežite korisnika sa firmom.");
       savingRef.current=false;setSaving(false);return;
     }
     if (!isFiscalUrl(qr)) {
+      setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave."});
       setMessage(`QR je očitan (${qrKind(qr)}), ali nije fiskalni QR Poreske uprave.`);
       savingRef.current=false;setSaving(false);return;
     }
@@ -395,52 +434,85 @@ export default function QrScanner({ organizationId, onDone }:{
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Greška.");
       if(d.duplicate){
-        setMessage("Ovaj račun je već skeniran.");
+        const receipt=d.receipt||{};
+        const validity=validityFromStatus(receipt.verification_status);
+        setReceiptStatus({
+          validity,
+          buyerPib:receipt.buyer_pib||null,
+          vat:vatFromResponse(receipt.verification_status,receipt.buyer_pib,receipt),
+          note:"Ovaj fiskalni račun je već skeniran.",
+          merchantName:receipt.merchant_name||null,
+          totalAmount:receipt.total_amount??null,
+          duplicate:true
+        });
+        setMessage("Već postoji u bazi.");
         savingRef.current=false;setSaving(false);
         return;
       }
       if(d.needs_buyer_pib_confirmation){
         setPendingNoPib({qr,preview:d.preview});
-        setMessage("Na fiskalnom računu nije pronađen ID/PIB kupca. Račun nije podoban za automatsku knjigovodstvenu/PDV obradu bez dodatne provere.");
+        setReceiptStatus({
+          validity:validityFromStatus(d.status),
+          buyerPib:null,
+          vat:"no",
+          note:"Račun nema ID / PIB kupca.",
+          merchantName:d.preview?.merchant_name||null,
+          totalAmount:d.preview?.total_amount??null
+        });
+        setMessage("Potrebna je dodatna provera pre knjiženja.");
         savingRef.current=false;setSaving(false);
         return;
       }
+      const receipt=d.receipt||{};
+      const buyerPib=receipt.buyer_pib||null;
+      const validity=validityFromStatus(d.status||receipt.verification_status);
+      const vat=vatFromResponse(d.status||receipt.verification_status,buyerPib,receipt,d.aiAnalysis);
       setPendingNoPib(null);
-      setMessage(d.status==="provereno" ? "Račun je dodat i verifikovan kod Poreske uprave." : "Račun je dodat, ali verifikaciju treba proveriti.");
-      setTimeout(()=>onDone(d),650);
+      setReceiptStatus({
+        validity,
+        buyerPib,
+        vat,
+        note:!buyerPib?"Račun je sačuvan u arhivu bez PIB-a kupca.":validity==="valid"?"Račun je verifikovan i sačuvan.":validity==="invalid"?"Račun nije potvrđen kao validan kod Poreske uprave.":"Potrebna je dodatna provera verifikacije računa.",
+        merchantName:receipt.merchant_name||null,
+        totalAmount:receipt.total_amount??null
+      });
+      setMessage(validity==="valid" ? "Račun je verifikovan i sačuvan." : "Račun je sačuvan, ali je potrebna dodatna provera.");
+      setTimeout(()=>onDone(d),2200);
     } catch(e:any) {
-      setMessage(e.message || "Skeniranje nije uspelo.");
+      const note=e.message || "Skeniranje nije uspelo.";
+      setReceiptStatus({validity:"unconfirmed",buyerPib:null,vat:"check",note});
+      setMessage(note);
       savingRef.current=false;setSaving(false);
     }
   }
 
   async function scanImage(file?:File) {
     if (!file) return;
-    setMessage("Analiziram fotografiju kroz četiri QR čitača i više nivoa uvećanja…");
+    setMessage("Analiziram fotografiju QR koda…");
     try {
       const bitmap = await createImageBitmap(file,{imageOrientation:"from-image"});
       let value = "";
-      let usedEngine="";
 
       if (window.BarcodeDetector) {
         try {
           const detector = detectorRef.current || new window.BarcodeDetector({formats:["qr_code"]});
           const codes = await detector.detect(bitmap as any);
           value = codes.find(c=>c.rawValue)?.rawValue?.trim() || "";
-          if(value)usedEngine="Native BarcodeDetector";
         } catch {}
       }
       if (!value) {
         const decoded=await multiDecode(bitmap,bitmap.width,bitmap.height,true);
-        value=decoded.value;usedEngine=decoded.engine;
+        value=decoded.value;
       }
       bitmap.close();
       if (!value) throw new Error("QR kod nije pronađen. Probajte oštriju fotografiju bez odsjaja i sa celim QR kodom u kadru.");
-      setEngine(usedEngine||engine);
       detectedRef.current=value;
       setDetected(value);
       if (isFiscalUrl(value)) await save(value);
-      else setMessage(`QR je očitan (${qrKind(value)}). Nije fiskalni QR, zato nije upisan kao račun.`);
+      else {
+        setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave."});
+        setMessage(`QR je očitan (${qrKind(value)}), ali nije fiskalni QR.`);
+      }
     } catch(e:any) {
       setMessage(e?.message || "QR kod nije pronađen na fotografiji.");
     } finally {
@@ -458,17 +530,13 @@ export default function QrScanner({ organizationId, onDone }:{
     } catch {}
   }
 
-  async function copyDetected() {
-    if (!detected) return;
-    try { await navigator.clipboard.writeText(detected); setMessage("Sadržaj QR koda je kopiran."); } catch {}
-  }
-
   function restart() {
     savingRef.current=false;
     setSaving(false);
     detectedRef.current="";
     setDetected("");
     setPendingNoPib(null);
+    setReceiptStatus(null);
     setAutoZoomPaused(false);
     processingRef.current = false;
     setRestartKey(v=>v+1);
@@ -478,8 +546,6 @@ export default function QrScanner({ organizationId, onDone }:{
     <div className="camera-box qr-camera-box">
       <video ref={videoRef} muted playsInline style={!zoomAvailable&&zoomLevel>1?{transform:`scale(${zoomLevel})`,transformOrigin:"center center"}:undefined} />
       <div className="qr-frame" aria-hidden="true"><span/><span/><span/><span/></div>
-      <div className="camera-msg">{message}</div>
-      <div className="qr-engine"><ScanLine size={13}/> {engine}</div>
       <button type="button" className={`qr-autozoom ${autoZoomPaused?"paused":""}`} onClick={toggleAutoZoom} aria-label={autoZoomPaused?"Nastavi auto-zoom":"Zaustavi auto-zoom"}>
         {autoZoomPaused?<Play size={13}/>:<Pause size={13}/>} {autoZoomPaused?`Zoom zaključan ${zoomLevel.toFixed(1)}×`:`Auto-zoom ${zoomLevel.toFixed(1)}×`}
       </button>
@@ -492,15 +558,43 @@ export default function QrScanner({ organizationId, onDone }:{
       <b>{zoomLevel.toFixed(1)}×</b>
     </div>}
 
-    {detected && <div className="qr-detected">
-      <b>Očitan QR · {detectedKind}</b>
-      <div className="mono">{detected}</div>
-      <div className="qr-result-actions">
-        <button type="button" className="btn" onClick={copyDetected}><Clipboard size={15}/> Kopiraj</button>
-        {/^(https?:\/\/)/i.test(detected) && <a className="btn" href={detected} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Otvori</a>}
-        {!saving && <button type="button" className="btn" onClick={restart}><RefreshCw size={15}/> Skeniraj ponovo</button>}
+    <section className="qr-status-card" aria-live="polite">
+      <div className="qr-status-title"><FileCheck2 size={22}/><b>Status računa</b>{receiptStatus?.duplicate&&<span className="qr-status-duplicate">Već postoji u bazi</span>}</div>
+      <div className="qr-status-grid">
+        <div className="qr-status-label">Validnost računa:</div>
+        <div>
+          {!receiptStatus&&<span className="qr-status-pill neutral"><CircleAlert size={16}/> Čeka skeniranje</span>}
+          {receiptStatus?.validity==="valid"&&<span className="qr-status-pill good"><CheckCircle2 size={16}/> Validan</span>}
+          {receiptStatus?.validity==="invalid"&&<span className="qr-status-pill bad"><XCircle size={16}/> Nevalidan</span>}
+          {receiptStatus?.validity==="unconfirmed"&&<span className="qr-status-pill warn"><CircleAlert size={16}/> Nije potvrđen</span>}
+          {receiptStatus?.validity==="not_fiscal"&&<span className="qr-status-pill bad"><XCircle size={16}/> Nije fiskalni QR</span>}
+        </div>
+        <div className="qr-status-label">PIB kupca:</div>
+        <div>
+          {receiptStatus?.buyerPib&&<span className="qr-status-pill good"><CheckCircle2 size={16}/> {receiptStatus.buyerPib}</span>}
+          {receiptStatus&&!receiptStatus.buyerPib&&receiptStatus.validity==="valid"&&<span className="qr-status-pill bad"><XCircle size={16}/> Nije pronađen</span>}
+          {receiptStatus&&!receiptStatus.buyerPib&&receiptStatus.validity==="unconfirmed"&&<span className="qr-status-pill warn"><CircleAlert size={16}/> Nije potvrđen</span>}
+          {receiptStatus&&!receiptStatus.buyerPib&&receiptStatus.validity==="invalid"&&<span className="qr-status-pill warn"><CircleAlert size={16}/> Nije potvrđen</span>}
+          {receiptStatus&&!receiptStatus.buyerPib&&receiptStatus.validity==="not_fiscal"&&<span className="qr-status-pill neutral">Nije primenljivo</span>}
+          {!receiptStatus&&<span className="qr-status-pill neutral">—</span>}
+        </div>
+        <div className="qr-status-label">PDV:</div>
+        <div>
+          {(!receiptStatus||receiptStatus.vat==="waiting")&&<span className="qr-status-pill neutral">—</span>}
+          {receiptStatus?.vat==="yes"&&<span className="qr-status-pill good"><CheckCircle2 size={16}/> Može da se koristi</span>}
+          {receiptStatus?.vat==="no"&&<span className="qr-status-pill bad"><XCircle size={16}/> Ne može da se koristi</span>}
+          {receiptStatus?.vat==="check"&&<span className="qr-status-pill warn"><CircleAlert size={16}/> Potrebna provera</span>}
+        </div>
+        <div className="qr-status-label">Napomena:</div>
+        <div className="qr-status-note"><CircleAlert size={16}/><span>{receiptStatus?.note||message}</span></div>
       </div>
-    </div>}
+      {(receiptStatus?.merchantName || receiptStatus?.totalAmount!=null) && <div className="qr-status-summary">
+        {receiptStatus?.merchantName&&<span><small>Dobavljač</small><b>{receiptStatus.merchantName}</b></span>}
+        {receiptStatus?.totalAmount!=null&&<span><small>Iznos</small><b>{amountLabel(receiptStatus.totalAmount)}</b></span>}
+      </div>}
+      <div className="qr-status-footer"><Info size={16}/><span>{receiptStatus?.validity==="valid"&&!receiptStatus?.buyerPib?"Potrebna dodatna provera pre knjiženja.":receiptStatus?.vat==="yes"||receiptStatus?.vat==="no"||receiptStatus?.vat==="check"?"PDV status je automatski predlog. Konačnu odluku potvrđuje knjigovođa.":"Usmerite fiskalni QR u okvir kamere."}</span></div>
+      {detected&&!saving&&<div className="qr-status-actions"><button type="button" className="btn" onClick={restart}><RefreshCw size={15}/> Skeniraj ponovo</button></div>}
+    </section>
 
 
     {pendingNoPib && <div className="qr-pib-warning" role="alertdialog" aria-label="Račun bez PIB-a kupca">
@@ -514,7 +608,7 @@ export default function QrScanner({ organizationId, onDone }:{
       <input ref={imageInputRef} hidden type="file" accept="image/*" onChange={e=>scanImage(e.target.files?.[0])}/>
     </div>
 
-    <div className="scanner-info"><ScanLine size={16}/><span>QR 2.1 koristi nativni čitač, QR Worker, ZXing TRY-HARDER i jsQR multi-pass. Auto-zoom se menja dok ne pronađete najbolji kadar; dodirnite oznaku Auto-zoom da zaključate trenutni nivo uvećanja.</span></div>
+    <div className="scanner-info"><ScanLine size={16}/><span>Auto-zoom se menja dok ne pronađete najbolji kadar. Dodirnite oznaku Auto-zoom da zaključate trenutni nivo uvećanja.</span></div>
 
     <div className="field"><label>Ručni unos fiskalnog QR linka</label><input className="input mono" value={manual} onChange={e=>setManual(e.target.value)} placeholder="https://suf.purs.gov.rs/..." /></div>
     <button className="btn btn-primary" style={{width:"100%",marginTop:10}} disabled={!manual||saving} onClick={()=>save(manual)}>Proveri i sačuvaj fiskalni račun</button>

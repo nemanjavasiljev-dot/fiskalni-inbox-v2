@@ -1,0 +1,20 @@
+FiscalBox V5.9.3.3 — TEST REZULTATI
+Datum: 2026-09-26
+
+Osnova: V5.9.3.2 QR Fullscreen / Duplikati / PIB
+Nova verzija: 5.9.3.3
+
+Provere:
+- 174 TS/TSX fajla
+- 0 sintaksnih grešaka (TypeScript transpile check)
+- sirovi QR sadržaj se ne renderuje korisniku: OK
+- QR engine/Worker tehnički overlay se ne renderuje: OK
+- tehnička camera-msg poruka se ne renderuje preko kamere: OK
+- kartica Status računa postoji ispod kamere: OK
+- kartica prikazuje validnost, PIB kupca, PDV predlog, napomenu, dobavljača i iznos kada postoje: OK
+- duplikat prikazuje Već postoji u bazi: OK
+- račun bez PIB-a zadržava potvrdu za čuvanje u arhivu: OK
+- SQL nije menjan; koristi se SQL_029_QR_DUPLIKATI_PIB_GATE.sql: OK
+- SHA256 SQL_029: 4f110e17dc6cc52e72fdf7da10ca57c499bb58929f2b4a1aec1038445c5c643b
+
+Napomena: puni npm regression/build test nije pokrenut jer paket nema node_modules, a instalacija zavisnosti nije bila dostupna u radnom okruženju. Sintaksna provera svih TS/TSX fajlova je prošla bez grešaka.
