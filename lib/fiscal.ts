@@ -59,6 +59,107 @@ function safeDate(v: unknown) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+function normalizedKey(value:string){
+  return value.toLocaleLowerCase("sr").replace(/[\s_\-]/g,"");
+}
+
+function taxFromJournal(value:unknown){
+  const text=String(value??"").replace(/&nbsp;|&#160;/gi," ").replace(/<[^>]+>/g," ").replace(/\u00a0/g," ");
+  if(!text.trim())return null;
+  const totalPatterns=[
+    /(?:Ukupan\s+iznos\s+poreza|Ukupan\s+porez|Total\s+tax|Total\s+VAT)\s*[:：]?\s*([+-]?\d[\d\s.]*(?:,\d{1,2})?)/i,
+    /(?:Укупан\s+износ\s+пореза|Укупан\s+порез)\s*[:：]?\s*([+-]?\d[\d\s.]*(?:,\d{1,2})?)/i,
+  ];
+  for(const pattern of totalPatterns){
+    const hit=text.match(pattern);
+    const parsed=hit?num(hit[1]):null;
+    if(parsed!=null)return parsed;
+  }
+
+  // Rezervni slučaj: saberi kolonu „Porez“ u specifikaciji poreskih stopa.
+  const lines=text.split(/\r?\n/);
+  let taxSection=false;
+  let sum=0;
+  let found=0;
+  for(const rawLine of lines){
+    const line=rawLine.replace(/\u00a0/g," ").trim();
+    if(!line)continue;
+    if(/(?:Oznaka|Ознака).*?(?:Stopa|Стопа).*?(?:Porez|Порез)/i.test(line)){taxSection=true;continue;}
+    if(!taxSection)continue;
+    if(/(?:PFR\s*vreme|ПФР\s*време|PFR\s*broj|ПФР\s*број|KRAJ\s+FISKALNOG|КРАЈ\s+ФИСКАЛНОГ)/i.test(line))break;
+    const match=line.match(/\d{1,3}(?:[.,]\d{1,2})?\s*%[^\d+-]*([+-]?\d[\d\s.]*(?:,\d{1,2})?)/);
+    if(!match)continue;
+    const parsed=num(match[1]);
+    if(parsed!=null){sum+=parsed;found++;}
+  }
+  return found?Number(sum.toFixed(2)):null;
+}
+
+function taxFromSummaryArrays(input:unknown){
+  let result:number|null=null;
+  const visit=(node:any,key="")=>{
+    if(result!=null||node==null)return;
+    if(Array.isArray(node)){
+      const nk=normalizedKey(key);
+      if(["taxitems","taxsummary","taxsummaries","taxes","vatsummary","vattotals"].includes(nk)){
+        let sum=0,found=0;
+        for(const item of node){
+          if(!item||typeof item!=="object")continue;
+          const entries=Object.entries(item as Record<string,unknown>);
+          const amountEntry=entries.find(([k])=>["taxamount","vatamount","tax","vat"].includes(normalizedKey(k)));
+          if(!amountEntry)continue;
+          const parsed=num(amountEntry[1]);
+          if(parsed!=null){sum+=parsed;found++;}
+        }
+        if(found){result=Number(sum.toFixed(2));return;}
+      }
+      for(const item of node)visit(item,key);
+      return;
+    }
+    if(typeof node==="object")for(const [k,v] of Object.entries(node))visit(v,k);
+  };
+  visit(input);
+  return result;
+}
+
+/**
+ * Vraća ukupan PDV sa fiskalnog računa. Zvanični verification JSON često
+ * nema posebno totalTax polje, ali sadrži journal u kome fiskalni račun
+ * obavezno iskazuje „Ukupan iznos poreza“.
+ */
+export function extractTotalTax(raw:unknown){
+  if(!raw||typeof raw!=="object")return taxFromJournal(raw);
+  const entries=allEntries(raw);
+  const directKeys=new Set([
+    "totaltax","totaltaxamount","totalvat","totalvatamount",
+    "ukupaniznosporeza","ukupanporez","ukupanpdv"
+  ]);
+  for(const [k,v] of entries){
+    if(!directKeys.has(normalizedKey(k)))continue;
+    const parsed=num(v);
+    if(parsed!=null)return parsed;
+  }
+  const journal=pickScalar(entries,["journal","invoicejournal"]);
+  const fromJournal=taxFromJournal(journal);
+  if(fromJournal!=null)return fromJournal;
+  const fromArrays=taxFromSummaryArrays(raw);
+  if(fromArrays!=null)return fromArrays;
+  // HTML fallback sa verification stranice ponekad završi kao tekst u raw_json.
+  for(const [,v] of entries){
+    if(typeof v!=="string")continue;
+    const parsed=taxFromJournal(v);
+    if(parsed!=null)return parsed;
+  }
+  return null;
+}
+
+export function receiptTotalTax(receipt:any){
+  const extracted=extractTotalTax(receipt?.raw_json);
+  if(extracted!=null)return extracted;
+  const stored=num(receipt?.total_tax);
+  return stored;
+}
+
 export function normalizePib(v: unknown) {
   const raw = String(v ?? "").trim();
   if (!raw) return null;
@@ -135,7 +236,10 @@ export function extractBuyerPib(raw: unknown) {
 export function normalizeVerification(raw: unknown) {
   const e = allEntries(raw);
   const statusRaw = pickScalar(e,["status","verificationstatus","invoicestatus"]);
-  const status = verificationStatus(statusRaw);
+  const explicitValid=pickScalar(e,["isvalid","valid"]);
+  const status = typeof explicitValid==="boolean"
+    ? {text:explicitValid?"Račun je validan":"Račun nije validan",valid:explicitValid}
+    : verificationStatus(statusRaw);
   const extension = String(pickScalar(e,[
     "invoiceandtransactiontypeextension","invoicecounterextension","invoiceextension"
   ]) || "") || null;
@@ -158,7 +262,7 @@ export function normalizeVerification(raw: unknown) {
       "businessname", "merchantname", "sellername", "companyname", "shopname", "locationname"
     ]) || "") || null,
     merchant_pib: normalizePib(pickScalar(e, [
-      "tin", "taxpayerid", "sellertin", "merchanttin", "pib"
+      "tin", "taxid", "taxpayerid", "sellertin", "merchanttin", "pib"
     ])),
     location_name: String(pickScalar(e,["locationname","shopname"]) || "") || null,
     address: String(pickScalar(e,["address","locationaddress"]) || "") || null,
@@ -173,9 +277,7 @@ export function normalizeVerification(raw: unknown) {
     total_amount: num(pickScalar(e, [
       "totalamount", "total", "grandtotal", "amount"
     ])),
-    total_tax: num(pickScalar(e, [
-      "totaltax", "taxamount", "vatamount", "vat"
-    ])),
+    total_tax: extractTotalTax(raw),
     payment_method: paymentNames(e),
     buyer_pib: buyerPib,
     buyer_cost_center: String(pickScalar(e,["buyercostcenterid","buyercostcenter"]) || "") || null,

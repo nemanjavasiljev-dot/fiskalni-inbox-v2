@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizePib, normalizeVerification, extractBuyerPib } from "@/lib/fiscal";
+import { normalizePib, normalizeVerification, extractBuyerPib, receiptTotalTax } from "@/lib/fiscal";
 import { lookupCompanyByPib } from "@/lib/company-registry/company-registry-service";
 import PrintButton from "./print-button";
 import VatDecisionPanel from "@/components/VatDecisionPanel";
@@ -134,7 +134,10 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
   const sellerName=normalized.merchant_name || r.merchant_name || "—";
   const sellerPib=normalized.merchant_pib || r.merchant_pib || "—";
   const total=normalized.total_amount ?? r.total_amount;
-  const totalTax=normalized.total_tax ?? r.total_tax;
+  const totalTax=receiptTotalTax(r);
+  if(r.total_tax==null && totalTax!=null){
+    await admin.from("receipts").update({total_tax:totalTax}).eq("id",r.id);
+  }
   const payment=normalized.payment_method || r.payment_method || "—";
   const invoiceNo=normalized.invoice_number || r.invoice_number || "—";
   const sdcTime=normalized.sdc_time || r.sdc_time || r.created_at;

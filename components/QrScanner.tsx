@@ -3,6 +3,7 @@
 import jsQR from "jsqr";
 import { AlertTriangle, CheckCircle2, CircleAlert, FileCheck2, Flashlight, ImagePlus, Info, Pause, Play, RefreshCw, ScanLine, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { receiptTotalTax } from "@/lib/fiscal";
 
 type BarcodeDetectorLike = {
   detect(source: ImageBitmapSource): Promise<Array<{ rawValue?: string }>>;
@@ -23,6 +24,7 @@ type ReceiptStatus = {
   note:string;
   merchantName?:string|null;
   totalAmount?:number|null;
+  totalTax?:number|null;
   duplicate?:boolean;
 };
 
@@ -393,7 +395,7 @@ export default function QrScanner({ organizationId, onDone }:{
       if (isFiscalUrl(value)) {
         await save(value);
       } else {
-        setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave."});
+        setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave.",totalTax:null});
         setMessage(`QR je očitan (${qrKind(value)}), ali nije fiskalni QR.`);
       }
     }
@@ -421,7 +423,7 @@ export default function QrScanner({ organizationId, onDone }:{
       savingRef.current=false;setSaving(false);return;
     }
     if (!isFiscalUrl(qr)) {
-      setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave."});
+      setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave.",totalTax:null});
       setMessage(`QR je očitan (${qrKind(qr)}), ali nije fiskalni QR Poreske uprave.`);
       savingRef.current=false;setSaving(false);return;
     }
@@ -443,6 +445,7 @@ export default function QrScanner({ organizationId, onDone }:{
           note:"Ovaj fiskalni račun je već skeniran.",
           merchantName:receipt.merchant_name||null,
           totalAmount:receipt.total_amount??null,
+          totalTax:receiptTotalTax(receipt),
           duplicate:true
         });
         setMessage("Već postoji u bazi.");
@@ -457,7 +460,8 @@ export default function QrScanner({ organizationId, onDone }:{
           vat:"no",
           note:"Račun nema ID / PIB kupca.",
           merchantName:d.preview?.merchant_name||null,
-          totalAmount:d.preview?.total_amount??null
+          totalAmount:d.preview?.total_amount??null,
+          totalTax:d.preview?.total_tax??null
         });
         setMessage("Potrebna je dodatna provera pre knjiženja.");
         savingRef.current=false;setSaving(false);
@@ -474,13 +478,14 @@ export default function QrScanner({ organizationId, onDone }:{
         vat,
         note:!buyerPib?"Račun je sačuvan u arhivu bez PIB-a kupca.":validity==="valid"?"Račun je verifikovan i sačuvan.":validity==="invalid"?"Račun nije potvrđen kao validan kod Poreske uprave.":"Potrebna je dodatna provera verifikacije računa.",
         merchantName:receipt.merchant_name||null,
-        totalAmount:receipt.total_amount??null
+        totalAmount:receipt.total_amount??null,
+        totalTax:receiptTotalTax(receipt)
       });
       setMessage(validity==="valid" ? "Račun je verifikovan i sačuvan." : "Račun je sačuvan, ali je potrebna dodatna provera.");
       setTimeout(()=>onDone(d),2200);
     } catch(e:any) {
       const note=e.message || "Skeniranje nije uspelo.";
-      setReceiptStatus({validity:"unconfirmed",buyerPib:null,vat:"check",note});
+      setReceiptStatus({validity:"unconfirmed",buyerPib:null,vat:"check",note,totalTax:null});
       setMessage(note);
       savingRef.current=false;setSaving(false);
     }
@@ -510,7 +515,7 @@ export default function QrScanner({ organizationId, onDone }:{
       setDetected(value);
       if (isFiscalUrl(value)) await save(value);
       else {
-        setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave."});
+        setReceiptStatus({validity:"not_fiscal",buyerPib:null,vat:"check",note:"Očitani QR kod nije fiskalni račun Poreske uprave.",totalTax:null});
         setMessage(`QR je očitan (${qrKind(value)}), ali nije fiskalni QR.`);
       }
     } catch(e:any) {
@@ -579,11 +584,12 @@ export default function QrScanner({ organizationId, onDone }:{
           {!receiptStatus&&<span className="qr-status-pill neutral">—</span>}
         </div>
         <div className="qr-status-label">PDV:</div>
-        <div>
+        <div className="qr-status-vat-value">
           {(!receiptStatus||receiptStatus.vat==="waiting")&&<span className="qr-status-pill neutral">—</span>}
-          {receiptStatus?.vat==="yes"&&<span className="qr-status-pill good"><CheckCircle2 size={16}/> Može da se koristi</span>}
-          {receiptStatus?.vat==="no"&&<span className="qr-status-pill bad"><XCircle size={16}/> Ne može da se koristi</span>}
-          {receiptStatus?.vat==="check"&&<span className="qr-status-pill warn"><CircleAlert size={16}/> Potrebna provera</span>}
+          {receiptStatus&&receiptStatus.validity!=="not_fiscal"&&receiptStatus.totalTax!=null&&<span className={`qr-status-pill ${receiptStatus.vat==="yes"?"good":receiptStatus.vat==="no"?"bad":"warn"}`}>{receiptStatus.vat==="yes"?<CheckCircle2 size={16}/>:receiptStatus.vat==="no"?<XCircle size={16}/>:<CircleAlert size={16}/>} {amountLabel(receiptStatus.totalTax)}</span>}
+          {receiptStatus&&receiptStatus.validity!=="not_fiscal"&&receiptStatus.totalTax==null&&<span className="qr-status-pill warn"><CircleAlert size={16}/> Iznos nije očitan</span>}
+          {receiptStatus?.validity==="not_fiscal"&&<span className="qr-status-pill neutral">Nije primenljivo</span>}
+          {receiptStatus&&receiptStatus.validity!=="not_fiscal"&&receiptStatus.vat!=="waiting"&&<small className={`qr-vat-usage ${receiptStatus.vat}`}>{receiptStatus.vat==="yes"?"Može da se koristi":receiptStatus.vat==="no"?"Ne može da se koristi":"Potrebna provera"}</small>}
         </div>
         <div className="qr-status-label">Napomena:</div>
         <div className="qr-status-note"><CircleAlert size={16}/><span>{receiptStatus?.note||message}</span></div>
@@ -592,7 +598,7 @@ export default function QrScanner({ organizationId, onDone }:{
         {receiptStatus?.merchantName&&<span><small>Dobavljač</small><b>{receiptStatus.merchantName}</b></span>}
         {receiptStatus?.totalAmount!=null&&<span><small>Iznos</small><b>{amountLabel(receiptStatus.totalAmount)}</b></span>}
       </div>}
-      <div className="qr-status-footer"><Info size={16}/><span>{receiptStatus?.validity==="valid"&&!receiptStatus?.buyerPib?"Potrebna dodatna provera pre knjiženja.":receiptStatus?.vat==="yes"||receiptStatus?.vat==="no"||receiptStatus?.vat==="check"?"PDV status je automatski predlog. Konačnu odluku potvrđuje knjigovođa.":"Usmerite fiskalni QR u okvir kamere."}</span></div>
+      <div className="qr-status-footer"><Info size={16}/><span>{receiptStatus?.validity==="valid"&&!receiptStatus?.buyerPib?"Potrebna dodatna provera pre knjiženja.":receiptStatus?.vat==="yes"||receiptStatus?.vat==="no"||receiptStatus?.vat==="check"?"PDV iznos se čita iz fiskalnog računa. Konačnu odluku o odbitku potvrđuje knjigovođa.":"Usmerite fiskalni QR u okvir kamere."}</span></div>
       {detected&&!saving&&<div className="qr-status-actions"><button type="button" className="btn" onClick={restart}><RefreshCw size={15}/> Skeniraj ponovo</button></div>}
     </section>
 

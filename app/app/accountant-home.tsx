@@ -3,6 +3,7 @@ import React from "react";
 import { Archive, Bell, CalendarDays, FileCheck2, FileText, Plus, ReceiptText, Search, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
+import { receiptTotalTax } from "@/lib/fiscal";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
 const dt=(v:any)=>v?new Intl.DateTimeFormat("sr-RS",{dateStyle:"short",timeStyle:"short"}).format(new Date(v)):"—";
@@ -59,7 +60,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
     const pendingReceipts=allClientReceipts.filter((r:any)=>{const st:any=receiptStatus.get(String(r.id));return !st?.downloaded_at&&!st?.printed_at}).length;
     const pendingDocuments=allClientDocuments.filter((d:any)=>!documentStatus.get(String(d.id))?.downloaded_at).length;
     const pendingWork=pendingReceipts+pendingDocuments;
-    const vat=receipts.reduce((sum:number,r:any)=>sum+(r.vat_deductible===true?Number(r.total_tax||0):0),0);
+    const vat=receipts.reduce((sum:number,r:any)=>sum+(r.vat_deductible===true?Number(receiptTotalTax(r)||0):0),0);
     return {...o,receiptCount:receipts.length,documentCount:docs.length,vat,pendingReceipts,pendingDocuments,pendingWork};
   }).sort((a:any,b:any)=>b.pendingWork-a.pendingWork||(b.receiptCount+b.documentCount)-(a.receiptCount+a.documentCount)||String(a.name||"").localeCompare(String(b.name||""),"sr"));
   const q=query.trim().toLowerCase();

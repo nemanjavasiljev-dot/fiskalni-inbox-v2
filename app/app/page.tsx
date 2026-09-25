@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Dashboard from "./ui";
 import SubscriptionRequired from "@/components/SubscriptionRequired";
+import { receiptTotalTax } from "@/lib/fiscal";
 
 function normEmail(v:any){return String(v||'').trim().toLowerCase();}
 function normPhone(v:any){let d=String(v||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('0'))d=`381${d.slice(1)}`;if(d&&!d.startsWith('381')&&d.length<=10)d=`381${d}`;return d?`+${d}`:'';}
@@ -87,7 +88,23 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
         supabase.from("accountant_receipt_status").select("*").eq("accountant_user_id",user.id),
         supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id)
       ]);
-      accountantOverview = {receipts:allReceipts||[],documents:allDocuments||[],receiptStatuses:receiptStatuses||[],documentStatuses:documentStatuses||[]};
+      let overviewReceipts:any[]=allReceipts||[];
+      const missingTaxIds=overviewReceipts.filter((r:any)=>r.total_tax==null).map((r:any)=>r.id);
+      if(missingTaxIds.length){
+        const rawTaxRows:any[]=[];
+        for(let i=0;i<missingTaxIds.length;i+=100){
+          const {data:chunk}=await supabase.from("receipts").select("id,raw_json").in("id",missingTaxIds.slice(i,i+100));
+          rawTaxRows.push(...(chunk||[]));
+        }
+        const rawMap=new Map(rawTaxRows.map((r:any)=>[String(r.id),r.raw_json]));
+        overviewReceipts=overviewReceipts.map((r:any)=>{
+          const raw=rawMap.get(String(r.id));
+          if(raw===undefined)return r;
+          const totalTax=receiptTotalTax({...r,raw_json:raw});
+          return {...r,total_tax:totalTax};
+        });
+      }
+      accountantOverview = {receipts:overviewReceipts,documents:allDocuments||[],receiptStatuses:receiptStatuses||[],documentStatuses:documentStatuses||[]};
     } else accountantOverview = {receipts:[],documents:[],receiptStatuses:[],documentStatuses:[]};
 
     if(accountingOffice){
