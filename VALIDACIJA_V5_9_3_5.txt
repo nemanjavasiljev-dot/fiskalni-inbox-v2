@@ -1,0 +1,26 @@
+FiscalBox V5.9.3.5 — VALIDACIJA
+
+- Osnova: V5.9.3.4
+- package.json: 5.9.3.5
+- TS/TSX syntax check: 176 fajlova, 0 sintaksnih gresaka
+- SQL_030 root i supabase/migrations kopije: identicne
+- Mesečni anchor testovi: 29/30/31, prestupna godina i prelazak godine — OK
+- Checkout za accounting organizaciju: blokiran
+- Subscription portal za accounting organizaciju: preusmeren na /app
+- MASTER auto-proforma kontrola: implementirana
+- Cron /api/cron/monthly-proformas: implementiran + CRON_SECRET zaštita
+- Jedinstveni billing ciklus: unique index po organization_id + billing_cycle_on
+
+NAPOMENA O TESTOVIMA:
+`npm test` nije mogao da se izvrsi do kraja u ovom source okruzenju zato sto ZIP nema instaliran node_modules, konkretno nedostaje paket `web-push` u runtime-u testa. Ovo nije TypeScript/sintaksna greska promene. Na development/deployment masini obavezno pokrenuti:
+
+npm install
+npm test
+npm run build
+
+SQL OBAVEZAN:
+SQL_030_KNJIGOVODJA_FREE_AUTO_PREDRACUN.sql
+
+Za self-hosted server obavezno zakazati dnevni poziv:
+GET /api/cron/monthly-proformas
+Authorization: Bearer <CRON_SECRET>

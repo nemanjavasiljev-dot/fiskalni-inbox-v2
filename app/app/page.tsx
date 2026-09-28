@@ -129,9 +129,9 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     }
   }
 
-  if(profile.global_role!=="master_admin"){
-    const billingOrg=accountantOnly?accountingOffice:activeOrg;
-    if(billingOrg && billingOrg.status!=="paused"){
+  if(profile.global_role!=="master_admin"&&!accountantOnly){
+    const billingOrg=activeOrg;
+    if(billingOrg && billingOrg.organization_type!=="accounting" && billingOrg.status!=="paused"){
       const sub=billingOrg.subscription;
       const now=Date.now();
       const trialOk=sub?.status==="trial" && sub?.trial_ends_at && new Date(sub.trial_ends_at).getTime()>now;

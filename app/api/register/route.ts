@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendRegistrationVerificationEmail } from '@/lib/mailer';
 import { createConnectionRequest, validEmail as validInviteEmail, normalizePhone, validPhone } from '@/lib/connection-requests';
+import { createPlanProforma } from '@/lib/billing';
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -33,7 +34,7 @@ export async function POST(request:Request){
   const email=String(body.email||'').trim().toLowerCase();
   const password=String(body.password||'');
   const companyId=String(body.company_id||'');
-  const plan=body.plan==='premium'?'premium':'basic';
+  let plan=body.plan==='premium'?'premium':'basic';
   const trial=body.trial!==false;
   const companyContactEmail=String(body.company_contact_email||'').trim().toLowerCase();
   const companyContactPhone=String(body.company_contact_phone||'').trim().slice(0,80);
@@ -52,6 +53,21 @@ export async function POST(request:Request){
   const admin=createAdminClient();
   const {data:company}=await admin.from('companies').select('*').eq('id',companyId).maybeSingle();
   if(!company)return NextResponse.json({error:'Izabrana firma više nije dostupna. Ponovite pretragu registra.'},{status:400});
+
+  // Ako je knjigovodja prethodno pozvao ovu email adresu, njegov izbor paketa
+  // ima prednost za novog klijenta i prenosi se na prvi predračun.
+  let accountantConnectionRequest:any=null;
+  if(role==='company'){
+    const {data:pendingInvite}=await admin.from('connection_requests')
+      .select('id,sender_organization_id,requested_plan')
+      .eq('sender_kind','accounting').eq('target_kind','company').eq('channel','email')
+      .eq('status','pending').eq('recipient_email',email)
+      .order('created_at',{ascending:false}).limit(1).maybeSingle();
+    if(pendingInvite){
+      accountantConnectionRequest=pendingInvite;
+      if(pendingInvite.requested_plan==='premium'||pendingInvite.requested_plan==='basic')plan=pendingInvite.requested_plan;
+    }
+  }
 
   const {data:existingEmail}=await admin.from('profiles').select('user_id').eq('auth_email',email).maybeSingle();
   if(existingEmail)return NextResponse.json({error:'Email adresa je već registrovana.'},{status:409});
@@ -93,15 +109,30 @@ export async function POST(request:Request){
     }
 
     const now=new Date();const trialEnd=new Date(now.getTime()+10*24*60*60*1000).toISOString();
-    const orgPayload:any={company_id:company.id,name:company.name,pib:company.pib,registration_number:company.registration_number,legal_form:company.legal_form,address:company.address,municipality:company.municipality||company.city,activity_code:company.activity_code,activity_name:company.activity_name,apr_raw:company.apr_raw||null,owner_user_id:newUserId,plan,status:trial?'trial':'pending_payment',organization_type:role==='accountant'?'accounting':'company',trial_ends_at:trial?trialEnd:null,contact_email:companyContactEmail||email,contact_phone:companyContactPhone||null};
+    const isAccounting=role==='accountant';const companyTrial=trial&&!isAccounting;const orgPayload:any={company_id:company.id,name:company.name,pib:company.pib,registration_number:company.registration_number,legal_form:company.legal_form,address:company.address,municipality:company.municipality||company.city,activity_code:company.activity_code,activity_name:company.activity_name,apr_raw:company.apr_raw||null,owner_user_id:newUserId,plan,status:isAccounting?'active':(companyTrial?'trial':'pending_payment'),organization_type:isAccounting?'accounting':'company',trial_ends_at:companyTrial?trialEnd:null,contact_email:companyContactEmail||email,contact_phone:companyContactPhone||null};
     const {data:org,error:orgError}=await admin.from('organizations').insert(orgPayload).select('id').single();
     if(orgError||!org)throw orgError||new Error('Organizacija nije kreirana.');newOrgId=org.id;
 
     const {error:memberError}=await admin.from('organization_members').insert({organization_id:org.id,user_id:newUserId,role:'owner',accounting_access_role:role==='accountant'?'admin':'user'});
     if(memberError)throw memberError;
 
-    const {error:subError}=await admin.from('subscriptions').insert({organization_id:org.id,company_id:company.id,plan,seat_count:1,status:trial?'trial':'pending_checkout',provider:null,trial_started_at:trial?now.toISOString():null,trial_ends_at:trial?trialEnd:null,trial_used_at:trial?now.toISOString():null,current_period_end:trial?trialEnd:null});
-    if(subError)throw subError;
+    if(role==='company'){
+      const {error:subError}=await admin.from('subscriptions').insert({organization_id:org.id,company_id:company.id,plan,seat_count:1,status:companyTrial?'trial':'pending_checkout',provider:null,trial_started_at:companyTrial?now.toISOString():null,trial_ends_at:companyTrial?trialEnd:null,trial_used_at:companyTrial?now.toISOString():null,current_period_end:companyTrial?trialEnd:null,auto_proforma_enabled:true});
+      if(subError)throw subError;
+    }
+
+    // Ako je registracija nastala iz poziva knjigovodje, vezujemo zahtev za nov nalog
+    // i odmah izdajemo prvi predračun za paket koji je knjigovodja izabrao.
+    let accountantProforma:any=null;let accountantProformaError:string|null=null;
+    if(role==='company'&&accountantConnectionRequest){
+      await admin.from('connection_requests').update({target_organization_id:org.id,updated_at:new Date().toISOString()}).eq('id',accountantConnectionRequest.id);
+      try{
+        accountantProforma=await createPlanProforma({admin,organization:{...org,...orgPayload,id:org.id},plan,seats:1,recipientEmail:companyContactEmail||email,appBillingUrl:`${origin}/app/billing`});
+      }catch(proformaError:any){
+        accountantProformaError=proformaError?.message||'Predračun nije automatski kreiran.';
+        console.error('[FiscalBox registration] accountant proforma failed',accountantProformaError);
+      }
+    }
 
     const emailResult=await sendRegistrationVerificationEmail({to:email,username,verifyUrl:actionLink});
     if(!emailResult.sent)console.error('[FiscalBox registration] verification email failed',{email,status:emailResult.status,error:emailResult.error});
@@ -117,7 +148,7 @@ export async function POST(request:Request){
       }
     }
 
-    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,requires_email_confirmation:true,verification_email_sent:emailResult.sent,verification_email_error:emailResult.sent?null:(emailResult.error||(!emailResult.configured?'RESEND_API_KEY nije podešen.':'Email nije poslat.')),accountant_invite_sent:accountantInviteSent,accountant_invite_error:accountantInviteError,redirect:'/login?registered=1'});
+    return NextResponse.json({ok:true,created:true,username,organization_id:org.id,requires_email_confirmation:true,verification_email_sent:emailResult.sent,verification_email_error:emailResult.sent?null:(emailResult.error||(!emailResult.configured?'RESEND_API_KEY nije podešen.':'Email nije poslat.')),accountant_invite_sent:accountantInviteSent,accountant_invite_error:accountantInviteError,accountant_selected_plan:accountantConnectionRequest?plan:null,accountant_proforma_id:accountantProforma?.invoice?.id||null,accountant_proforma_error:accountantProformaError,redirect:'/login?registered=1'});
   }catch(e:any){
     if(accessRequestId){try{await admin.from('company_access_requests').delete().eq('id',accessRequestId);}catch{}}
     if(newOrgId){try{await admin.from('organizations').delete().eq('id',newOrgId);}catch{}}

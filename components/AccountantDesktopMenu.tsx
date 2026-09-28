@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Bell, BriefcaseBusiness, CreditCard, Download, FileText, LayoutDashboard, Mail, Menu, Settings, Users, X } from "lucide-react";
+import { Bell, BriefcaseBusiness, Download, FileText, LayoutDashboard, Mail, Menu, Settings, Users, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import BrandWordmark from "@/components/BrandWordmark";
 import PushNotificationOptIn from "@/components/PushNotificationOptIn";
@@ -26,7 +26,6 @@ export default function AccountantDesktopMenu({
     { href: "/app", label: "Pregled", icon: LayoutDashboard, active: pathname === "/app" },
     { href: "/app#clients", label: "Moji klijenti", icon: BriefcaseBusiness, active: false },
     { href: "/app/billing", label: "Moji računi", icon: FileText, active: pathname === "/app/billing" },
-    { href: "/app/subscription", label: "Pretplata", icon: CreditCard, active: pathname === "/app/subscription" },
     { href: "/app/messages", label: "Poruke", icon: Mail, active: pathname === "/app/messages" },
     { href: "/app/notifications", label: "Notifikacije", icon: Bell, active: pathname === "/app/notifications" },
     ...(isAdmin ? [{ href: "/app/accountant/settings?tab=staff", label: "Moji zaposleni", icon: Users, active: false }] : []),

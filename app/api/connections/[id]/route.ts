@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requestMatchesRecipient } from '@/lib/connection-requests';
 import { sendPushToOrganization } from '@/lib/push-delivery';
+import { createPlanProforma } from '@/lib/billing';
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
   const {id}=await params;
@@ -46,10 +47,34 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   if(error)return NextResponse.json({error:error.message||'Zahtev nije obrađen. Osvežite stranicu i pokušajte ponovo.'},{status:409});
   const assignedTo=rpcResult?.assigned_to||employeeUserId||null;
 
+  let billingMessage='';
+  if(decision==='approve'&&req.sender_kind==='accounting'&&req.target_kind==='company'&&(req.requested_plan==='basic'||req.requested_plan==='premium')){
+    const requestedPlan=req.requested_plan;
+    const {data:sub}=await admin.from('subscriptions').select('*').eq('organization_id',recipientOrg.id).maybeSingle();
+    const validUntil=sub?.current_period_end||sub?.renews_at||sub?.trial_ends_at;
+    const currentlyPaid=String(sub?.status||'')==='active'&&validUntil&&new Date(validUntil).getTime()>Date.now();
+    if(sub){
+      await admin.from('subscriptions').update({plan:requestedPlan,auto_proforma_enabled:true}).eq('organization_id',recipientOrg.id);
+    }else{
+      await admin.from('subscriptions').insert({organization_id:recipientOrg.id,company_id:recipientOrg.company_id||null,plan:requestedPlan,seat_count:1,status:'pending_checkout',auto_proforma_enabled:true});
+    }
+    await admin.from('organizations').update({plan:requestedPlan}).eq('id',recipientOrg.id);
+    if(!currentlyPaid){
+      try{
+        const recipientEmail=String(recipientOrg.contact_email||profile?.auth_email||user.email||'');
+        const created=await createPlanProforma({admin,organization:recipientOrg,plan:requestedPlan,seats:1,recipientEmail,appBillingUrl:`${new URL(request.url).origin}/app/billing`});
+        billingMessage=created.invoice?' Predračun za izabrani paket je kreiran.':'';
+      }catch(e:any){
+        console.error('[FiscalBox connection] automatic proforma failed',e?.message||e);
+        billingMessage=' Povezivanje je uspešno, ali predračun nije automatski kreiran; proverite MASTER naplatu.';
+      }
+    }
+  }
+
   await sendPushToOrganization(admin,String(req.sender_organization_id),{
     title:decision==='approve'?'Zahtev prihvaćen':'Zahtev odbijen',
     body:`${recipientOrg.name||'Primalac'} je ${decision==='approve'?'prihvatio':'odbio'} zahtev za povezivanje.`,
     url:'/app',tag:`connection-response-${id}`,notificationType:'connection_response'
   }).catch(()=>{});
-  return NextResponse.json({ok:true,assigned_to:assignedTo,message:decision==='approve'?(assignedTo?'Klijent je prihvaćen i dodeljen zaposlenom.':'Klijent je prihvaćen i ostavljen kod ADMIN knjigovođe.'):'Zahtev je odbijen.'});
+  return NextResponse.json({ok:true,assigned_to:assignedTo,message:decision==='approve'?((assignedTo?'Klijent je prihvaćen i dodeljen zaposlenom.':'Klijent je prihvaćen i ostavljen kod ADMIN knjigovođe.')+billingMessage):'Zahtev je odbijen.'});
 }

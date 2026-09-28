@@ -13,6 +13,7 @@ export async function POST(request:Request){
   const admin=createAdminClient();
   const {data:org}=await admin.from('organizations').select('id,company_id,name,pib,registration_number,address,owner_user_id,organization_type,status,contact_email').eq('id',organizationId).maybeSingle();
   if(!org)return NextResponse.json({error:'Organizacija nije pronađena.'},{status:404});
+  if(org.organization_type==='accounting')return NextResponse.json({error:'Knjigovođe koriste FiscalBox bez pretplate. Pretplata se bira samo za klijentske firme.'},{status:403});
   const {data:membership}=await admin.from('organization_members').select('role,accounting_access_role').eq('organization_id',organizationId).eq('user_id',user.id).maybeSingle();
   const allowed=org.owner_user_id===user.id||(org.organization_type==='accounting'&&membership?.role==='employee'&&membership?.accounting_access_role==='admin');
   if(!allowed)return NextResponse.json({error:'Samo administrator naloga može izabrati pretplatu.'},{status:403});

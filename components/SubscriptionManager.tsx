@@ -31,7 +31,7 @@ export default function SubscriptionManager({organization,subscription,canManage
     {trialActive&&<div className="card subscription-live-card"><div><span className="pill">BESPLATNI / PROBNI NALOG</span><h2>Nadogradi FiscalBox</h2><p className="muted">Probni pristup je aktivan do {date(subscription?.trial_ends_at)}. Možete odmah izabrati plaćeni paket.</p></div><ArrowUpCircle size={30}/></div>}
     {freeAccess&&canManage&&<div className="grid subscription-choice-grid">
       <div className="card subscription-choice"><Landmark/><h3>Basic</h3><strong>1.250 RSD</strong><p>po korisniku / mesečno · bez PDV-a</p><button className="btn btn-primary" onClick={()=>selectPlan('basic')} disabled={!!busy}>{busy==='basic'?'Kreiram predračun…':'Nadogradi na Basic'}</button></div>
-      <div className="card subscription-choice premium"><Landmark/><h3>Premium</h3><strong>2.000 RSD</strong><p>po korisniku / mesečno · bez PDV-a</p><button className="btn btn-brand-green" onClick={()=>selectPlan('premium')} disabled={!!busy}>{busy==='premium'?'Kreiram predračun…':'Nadogradi na Premium'}</button></div>
+      <div className="card subscription-choice premium"><Landmark/><h3>Premium</h3><strong>1.790 RSD</strong><p>po korisniku / mesečno · bez PDV-a</p><button className="btn btn-brand-green" onClick={()=>selectPlan('premium')} disabled={!!busy}>{busy==='premium'?'Kreiram predračun…':'Nadogradi na Premium'}</button></div>
     </div>}
     {error&&<div className="error">{error}</div>}{message&&<div className="home-message">{message}</div>}
     <p className="subscription-secure"><ShieldCheck size={15}/> Izdavalac OSKAR ZOMBORI PR ALSET CO. nije u sistemu PDV-a; PDV se ne obračunava.</p>

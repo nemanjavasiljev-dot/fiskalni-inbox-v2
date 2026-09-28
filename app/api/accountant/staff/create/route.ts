@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { updateSubscriptionQuantity } from '@/lib/subscriptions';
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME=/^[a-z0-9._-]{3,30}$/;
@@ -38,11 +37,7 @@ export async function POST(request:Request){
 
     const {count}=await admin.from('organization_members').select('id',{count:'exact',head:true}).eq('organization_id',officeId).in('role',['owner','employee']);
     const seats=Math.max(1,Number(count||1));
-    const {data:sub}=await admin.from('subscriptions').select('*').eq('organization_id',officeId).maybeSingle();
-    if(sub?.provider_subscription_id&&['active','paused','past_due','cancelled'].includes(String(sub.status))){
-      try{await updateSubscriptionQuantity(String(sub.provider_subscription_id),seats);}catch(e:any){throw new Error(`Nalog zaposlenog nije dodat jer obračun pretplate nije mogao da se ažurira: ${e?.message||'billing error'}`);}
-    }
-    await admin.from('subscriptions').update({seat_count:seats}).eq('organization_id',officeId);
+    // Knjigovodstvena organizacija i njeni zaposleni ne placaju FiscalBox pretplatu.
     return NextResponse.json({ok:true,user_id:newId,username,email,full_name:fullName,seats});
   }catch(e:any){
     if(newId){try{await admin.from('organization_members').delete().eq('organization_id',officeId).eq('user_id',newId);}catch{}try{await admin.auth.admin.deleteUser(newId);}catch{}}

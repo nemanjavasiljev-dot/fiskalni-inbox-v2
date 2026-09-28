@@ -19,8 +19,13 @@ export async function POST(request:Request){
   if(action==="block"){
     update={status:"paused",service_block_reason:String(reason||"Blokirano od strane master administratora."),service_blocked_at:new Date().toISOString()};
   } else {
-    const {data:sub}=await ctx.admin.from("subscriptions").select("*").eq("organization_id",organization_id).maybeSingle();
-    update={status:serviceStatus(sub),service_block_reason:null,service_blocked_at:null};
+    const {data:org}=await ctx.admin.from("organizations").select("organization_type").eq("id",organization_id).maybeSingle();
+    if(org?.organization_type==="accounting"){
+      update={status:"active",service_block_reason:null,service_blocked_at:null};
+    }else{
+      const {data:sub}=await ctx.admin.from("subscriptions").select("*").eq("organization_id",organization_id).maybeSingle();
+      update={status:serviceStatus(sub),service_block_reason:null,service_blocked_at:null};
+    }
   }
   const {error}=await ctx.admin.from("organizations").update(update).eq("id",organization_id);if(error)return NextResponse.json({error:error.message},{status:400});
   await ctx.admin.from("master_action_log").insert({action:`service_${action}`,organization_id,details:{reason:reason||null,result_status:update.status},created_by:ctx.user.id});

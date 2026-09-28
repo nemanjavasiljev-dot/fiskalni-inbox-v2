@@ -58,6 +58,7 @@ export async function createConnectionRequest(opts:{
   senderUserId?:string|null;
   channel:InviteChannel;
   contact:string;
+  requestedPlan?:'basic'|'premium'|null;
 }){
   const {admin}=opts;
   const {data:senderOrg}=await admin.from('organizations')
@@ -67,6 +68,7 @@ export async function createConnectionRequest(opts:{
   if(!senderOrg)throw new Error('Organizacija koja šalje zahtev nije pronađena.');
   const senderKind:OrganizationKind=senderOrg.organization_type==='accounting'?'accounting':'company';
   const targetKind:OrganizationKind=senderKind==='company'?'accounting':'company';
+  const requestedPlan=senderKind==='accounting'&&targetKind==='company'?(opts.requestedPlan==='premium'?'premium':'basic'):null;
   const channel:InviteChannel=opts.channel==='sms'?'sms':'email';
   const email=channel==='email'?normalizeEmail(opts.contact):'';
   const phone=channel==='sms'?normalizePhone(opts.contact):'';
@@ -100,6 +102,7 @@ export async function createConnectionRequest(opts:{
     channel,
     recipient_email:email||null,
     recipient_phone:phone||null,
+    requested_plan:requestedPlan,
     status:'pending',
     expires_at:expiresAt
   }).select('id').single();
@@ -139,7 +142,7 @@ export async function createConnectionRequest(opts:{
       url:'/app',tag:`connection-${requestRow.id}`
     }).catch(()=>{});
   }
-  return {id:requestRow.id,channel,contact:email||phone,targetFound:Boolean(targetOrg),targetOrganizationId:targetOrg?.id||null,expiresAt};
+  return {id:requestRow.id,channel,contact:email||phone,requestedPlan,targetFound:Boolean(targetOrg),targetOrganizationId:targetOrg?.id||null,expiresAt};
 }
 
 export function requestMatchesRecipient(req:any,userEmail:string,org:any){
