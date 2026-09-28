@@ -150,6 +150,8 @@ export default function QrScanner({ organizationId, onDone }:{
   const lastScanRef = useRef(0);
   const frameRef = useRef(0);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const receiptPhotoInputRef = useRef<HTMLInputElement>(null);
+  const photoFallbackTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
   const savingRef = useRef(false);
   const detectedRef = useRef("");
   const zoomCapsRef = useRef<ZoomCaps>(null);
@@ -168,16 +170,23 @@ export default function QrScanner({ organizationId, onDone }:{
   const [autoZoomPaused,setAutoZoomPaused] = useState(false);
   const [pendingNoPib,setPendingNoPib] = useState<{qr:string;preview?:any}|null>(null);
   const [receiptStatus,setReceiptStatus] = useState<ReceiptStatus|null>(null);
+  const [photoFallback,setPhotoFallback] = useState(false);
 
   function clearAutoZoom(){
     if(autoZoomTimerRef.current)clearInterval(autoZoomTimerRef.current);
     autoZoomTimerRef.current=null;
   }
 
+  function clearPhotoFallbackTimer(){
+    if(photoFallbackTimerRef.current)clearTimeout(photoFallbackTimerRef.current);
+    photoFallbackTimerRef.current=null;
+  }
+
   function stopCamera() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = undefined;
     clearAutoZoom();
+    clearPhotoFallbackTimer();
     streamRef.current?.getTracks().forEach(t=>t.stop());
     streamRef.current = null;
     setTorchAvailable(false);
@@ -285,6 +294,7 @@ export default function QrScanner({ organizationId, onDone }:{
     setAutoZoomPaused(false);
     setPendingNoPib(null);
     setReceiptStatus(null);
+    setPhotoFallback(false);
 
     async function start() {
       try {
@@ -350,9 +360,19 @@ export default function QrScanner({ organizationId, onDone }:{
 
         setMessage("Usmerite QR u okvir. Auto-zoom i fokus rade automatski — držite telefon mirno.");
         startAdaptiveAutoZoom();
+        clearPhotoFallbackTimer();
+        photoFallbackTimerRef.current=setTimeout(()=>{
+          if(!active||detectedRef.current||savingRef.current)return;
+          setPhotoFallback(true);
+          setReceiptStatus({validity:"unconfirmed",buyerPib:null,vat:"check",note:"QR je oštećen ili nije čitljiv. Uslikajte ceo račun.",totalTax:null});
+          setMessage("QR je oštećen ili uređaj ne može da ga pročita. Uslikajte ceo fiskalni račun — biće sačuvan među fiskalnim računima.");
+          stopCamera();
+        },12000);
         loop();
       } catch {
-        setMessage("Kamera nije dostupna. Dozvolite pristup kameri ili učitajte fotografiju QR koda.");
+        setPhotoFallback(true);
+        setReceiptStatus({validity:"unconfirmed",buyerPib:null,vat:"check",note:"QR skener nije dostupan. Uslikajte ceo račun.",totalTax:null});
+        setMessage("QR skener nije dostupan. Prebacili smo vas u režim fotografije — uslikajte ceo fiskalni račun.");
       }
     }
 
@@ -389,6 +409,8 @@ export default function QrScanner({ organizationId, onDone }:{
     async function handleDetected(value:string) {
       if (!value || detectedRef.current === value || savingRef.current) return;
       detectedRef.current=value;
+      clearPhotoFallbackTimer();
+      setPhotoFallback(false);
       try { navigator.vibrate?.(90); } catch {}
       setDetected(value);
       stopCamera();
@@ -510,7 +532,7 @@ export default function QrScanner({ organizationId, onDone }:{
         value=decoded.value;
       }
       bitmap.close();
-      if (!value) throw new Error("QR kod nije pronađen. Probajte oštriju fotografiju bez odsjaja i sa celim QR kodom u kadru.");
+      if (!value) throw new Error("QR_UNREADABLE");
       detectedRef.current=value;
       setDetected(value);
       if (isFiscalUrl(value)) await save(value);
@@ -519,9 +541,38 @@ export default function QrScanner({ organizationId, onDone }:{
         setMessage(`QR je očitan (${qrKind(value)}), ali nije fiskalni QR.`);
       }
     } catch(e:any) {
-      setMessage(e?.message || "QR kod nije pronađen na fotografiji.");
+      if(e?.message==="QR_UNREADABLE"){
+        setPhotoFallback(true);
+        setReceiptStatus({validity:"unconfirmed",buyerPib:null,vat:"check",note:"QR je oštećen ili nije čitljiv. Uslikajte ceo račun.",totalTax:null});
+        setMessage("QR je oštećen ili nije čitljiv. Prebacili smo vas u režim fotografije — uslikajte ceo fiskalni račun.");
+      }else setMessage(e?.message || "QR kod nije pronađen na fotografiji.");
     } finally {
       if (imageInputRef.current) imageInputRef.current.value="";
+    }
+  }
+
+  async function saveReceiptPhoto(file?:File){
+    if(!file||savingRef.current)return;
+    if(!organizationId){setMessage("Prvo povežite korisnika sa firmom.");return;}
+    if(!file.type.startsWith("image/")){setMessage("Izaberite fotografiju celog fiskalnog računa.");return;}
+    savingRef.current=true;setSaving(true);stopCamera();
+    setMessage("Čuvam fotografiju celog fiskalnog računa…");
+    try{
+      const form=new FormData();form.append("organization_id",organizationId);form.append("file",file);
+      const r=await fetch("/api/receipts/photo",{method:"POST",body:form});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"Fotografija nije sačuvana.");
+      const receipt=d.receipt||{};
+      setReceiptStatus({validity:"unconfirmed",buyerPib:receipt.buyer_pib||null,vat:"check",note:"QR nije čitljiv. Fotografija celog računa je sačuvana za ručnu proveru.",merchantName:null,totalAmount:null,totalTax:null});
+      setMessage("Fotografija je sačuvana među fiskalnim računima. Potrebna je ručna provera.");
+      setPhotoFallback(false);
+      setTimeout(()=>onDone(d),1800);
+    }catch(e:any){
+      setMessage(e?.message||"Fotografija nije sačuvana.");
+      setPhotoFallback(true);
+      savingRef.current=false;setSaving(false);
+    }finally{
+      if(receiptPhotoInputRef.current)receiptPhotoInputRef.current.value="";
     }
   }
 
@@ -542,6 +593,7 @@ export default function QrScanner({ organizationId, onDone }:{
     setDetected("");
     setPendingNoPib(null);
     setReceiptStatus(null);
+    setPhotoFallback(false);
     setAutoZoomPaused(false);
     processingRef.current = false;
     setRestartKey(v=>v+1);
@@ -609,10 +661,16 @@ export default function QrScanner({ organizationId, onDone }:{
       <div className="qr-pib-warning-actions"><button type="button" className="btn" onClick={()=>{setPendingNoPib(null);restart();}}>Ne, skeniraj ponovo</button><button type="button" className="btn btn-primary" onClick={()=>save(pendingNoPib.qr,{confirmWithoutBuyerPib:true})}>Da, sačuvaj ipak</button></div>
     </div>}
 
-    <div className="qr-extra-actions">
+    {photoFallback&&<div className="qr-photo-fallback" role="alert">
+      <div className="qr-photo-fallback-head"><AlertTriangle size={22}/><div><b>QR je oštećen ili nije čitljiv</b><p>Uslikajte ceo fiskalni račun. FiscalBox će fotografiju sačuvati u bazi fiskalnih računa, ne u Dokumentima, i označiti je za ručnu proveru.</p></div></div>
+      <button type="button" className="btn btn-primary" onClick={()=>receiptPhotoInputRef.current?.click()} disabled={saving}><ImagePlus size={17}/> {saving?"Čuvam fotografiju…":"Uslikaj ceo račun"}</button>
+      <input ref={receiptPhotoInputRef} hidden type="file" accept="image/*" capture="environment" onChange={e=>saveReceiptPhoto(e.target.files?.[0])}/>
+    </div>}
+
+    {!photoFallback&&<div className="qr-extra-actions">
       <button type="button" className="btn" onClick={()=>imageInputRef.current?.click()} disabled={saving}><ImagePlus size={16}/> Učitaj fotografiju QR-a</button>
       <input ref={imageInputRef} hidden type="file" accept="image/*" onChange={e=>scanImage(e.target.files?.[0])}/>
-    </div>
+    </div>}
 
     <div className="scanner-info"><ScanLine size={16}/><span>Auto-zoom se menja dok ne pronađete najbolji kadar. Dodirnite oznaku Auto-zoom da zaključate trenutni nivo uvećanja.</span></div>
 

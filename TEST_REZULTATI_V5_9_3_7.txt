@@ -1,0 +1,17 @@
+FiscalBox V5.9.3.7 — statička validacija
+
+PASS: package version = 5.9.3.7
+PASS: knjigovođa glavno dugme = Dodaj novog klijenta
+PASS: modal klijenta ima Email + Ručno, nema SMS dodavanja
+PASS: ručno kreiranje koristi Supabase admin createUser + email_confirm:true
+PASS: ručno kreiranje automatski kreira organizaciju, subscription, accountant_company vezu i predračun
+PASS: mobilni Prijavi se i Registruj se koriste isti responsive sizing CSS
+PASS: PDF/print kupac koristi podatke organization naloga
+PASS: QR timeout prelazi u photo fallback
+PASS: foto fallback upisuje u receipts i koristi private receipt-images bucket
+PASS: fotografija se ne upisuje u documents
+PASS: photo receipt print prikazuje originalnu fotografiju
+PASS: SQL_031 dodat
+PASS: node scripts/check-syntax.cjs = 181 fajl, 0 sintaksnih grešaka
+
+NAPOMENA: npm test / npm run build zahtevaju npm install; izvorni paket nema node_modules.

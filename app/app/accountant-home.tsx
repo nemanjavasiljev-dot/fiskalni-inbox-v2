@@ -1,8 +1,9 @@
 "use client";
 import React from "react";
-import { Archive, Bell, CalendarDays, FileCheck2, FileText, Plus, ReceiptText, Search, Users, X } from "lucide-react";
+import { Archive, Bell, CalendarDays, Copy, FileCheck2, FileText, KeyRound, Plus, ReceiptText, Search, Users, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AccountantDesktopMenu from "@/components/AccountantDesktopMenu";
+import CompanyLookup from "@/components/CompanyLookup";
 import { receiptTotalTax } from "@/lib/fiscal";
 
 const money=(v:any)=>new Intl.NumberFormat("sr-RS",{style:"currency",currency:"RSD"}).format(Number(v||0));
@@ -14,15 +15,35 @@ function currentMonthKey(){const d=new Date();return `${d.getFullYear()}-${Strin
 function previousMonthLabel(){const d=new Date();d.setMonth(d.getMonth()-1);return new Intl.DateTimeFormat("sr-RS",{month:"long",year:"numeric"}).format(d)}
 function dueDate(day:number){const n=new Date();return new Intl.DateTimeFormat("sr-RS",{day:"2-digit",month:"long",year:"numeric"}).format(new Date(n.getFullYear(),n.getMonth(),day))}
 
+function usernameFromCompany(company:any){
+  const base=String(company?.name||"firma").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,22)||"firma";
+  const suffix=String(company?.pib||company?.registration_number||"").replace(/\D/g,"").slice(-4);
+  return `${base}${suffix?`_${suffix}`:""}`.slice(0,40);
+}
+function strongPassword(){
+  const chars="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const bytes=new Uint32Array(16);
+  crypto.getRandomValues(bytes);
+  let value=Array.from(bytes,(n)=>chars[n%chars.length]).join("");
+  if(!/[A-Z]/.test(value))value="A"+value.slice(1);
+  if(!/[a-z]/.test(value))value=value.slice(0,1)+"a"+value.slice(2);
+  if(!/[0-9]/.test(value))value=value.slice(0,2)+"7"+value.slice(3);
+  return value;
+}
+
 export default function AccountantHome({profile,organizations,overview,context}:any){
   const router=useRouter();
   const [period,setPeriod]=React.useState<"month"|"total">("month");
   const [notificationsOpen,setNotificationsOpen]=React.useState(false);
   const [query,setQuery]=React.useState("");
   const [addOpen,setAddOpen]=React.useState(false);
-  const [inviteChannel,setInviteChannel]=React.useState<"email"|"sms">("email");
-  const [inviteContact,setInviteContact]=React.useState("");
+  const [inviteMode,setInviteMode]=React.useState<"email"|"manual">("email");
+  const [inviteCompany,setInviteCompany]=React.useState<any|null>(null);
+  const [inviteEmail,setInviteEmail]=React.useState("");
   const [invitePlan,setInvitePlan]=React.useState<"basic"|"premium">("basic");
+  const [manualUsername,setManualUsername]=React.useState("");
+  const [manualPassword,setManualPassword]=React.useState("");
+  const [createdCredentials,setCreatedCredentials]=React.useState<any|null>(null);
   const [inviteBusy,setInviteBusy]=React.useState(false);
   const [inviteMessage,setInviteMessage]=React.useState("");
   const [intakeBusy,setIntakeBusy]=React.useState<"receipts"|"documents"|null>(null);
@@ -67,21 +88,53 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const q=query.trim().toLowerCase();
   const filteredClients=clientStats.filter((c:any)=>!q||String(c.name||"").toLowerCase().includes(q)||String(c.pib||"").includes(q));
 
+  function openAddClient(){
+    setInviteMode("email");setInviteCompany(null);setInviteEmail("");setInvitePlan("basic");setManualUsername("");setManualPassword("");setCreatedCredentials(null);setInviteMessage("");setAddOpen(true);
+  }
+
+  function changeInviteMode(mode:"email"|"manual"){
+    setInviteMode(mode);setInviteMessage("");setCreatedCredentials(null);
+    if(mode==="manual"&&inviteCompany){
+      setManualUsername(usernameFromCompany(inviteCompany));
+      setManualPassword(strongPassword());
+    }
+  }
+
+  function selectInviteCompany(company:any|null){
+    setInviteCompany(company);setInviteMessage("");setCreatedCredentials(null);
+    if(company&&inviteMode==="manual"){
+      setManualUsername(usernameFromCompany(company));
+      setManualPassword(strongPassword());
+    }
+  }
+
   async function addClient(e:React.FormEvent){
     e.preventDefault();
-    const contact=inviteContact.trim();
-    if(!contact){setInviteMessage("Unesite email ili broj telefona klijenta.");return;}
-    if(inviteChannel==="email"&&!/^\S+@\S+\.\S+$/.test(contact)){setInviteMessage("Unesite ispravan email klijenta.");return;}
-    if(inviteChannel==="sms"&&contact.replace(/\D/g,"").length<8){setInviteMessage("Unesite ispravan broj telefona klijenta.");return;}
-    setInviteBusy(true);setInviteMessage("");
-    const r=await fetch("/api/connections/request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({organization_id:context?.office?.organization_id||context?.office?.id,channel:inviteChannel,contact,plan:invitePlan})});
-    const d=await r.json();setInviteBusy(false);
-    if(!r.ok){setInviteMessage(d.error||"Zahtev nije poslat.");return;}
-    setInviteMessage(d.message||"Zahtev je poslat klijentu.");
-    setInviteContact("");
-    setInvitePlan("basic");
-    router.refresh();
+    const email=inviteEmail.trim().toLowerCase();
+    if(!inviteCompany?.id){setInviteMessage("Izaberite klijenta iz APR/NBS pretrage.");return;}
+    if(!/^\S+@\S+\.\S+$/.test(email)){setInviteMessage("Unesite ispravan email klijenta.");return;}
+    if(inviteMode==="manual"&&(!manualUsername.trim()||manualPassword.length<10)){setInviteMessage("Generišite korisničko ime i lozinku za klijenta.");return;}
+    setInviteBusy(true);setInviteMessage("");setCreatedCredentials(null);
+    try{
+      const endpoint=inviteMode==="manual"?"/api/accountant/clients/manual-create":"/api/accountant/clients/invite";
+      const payload=inviteMode==="manual"
+        ? {company_id:inviteCompany.id,email,username:manualUsername.trim().toLowerCase(),password:manualPassword,plan:invitePlan}
+        : {company_id:inviteCompany.id,email,channel:"email",plan:invitePlan};
+      const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"Klijent nije dodat.");
+      if(inviteMode==="manual"){
+        setCreatedCredentials({company:d.company_name||inviteCompany.name,email,username:d.username||manualUsername,password:manualPassword,plan:invitePlan,proformaError:d.proforma_error||null});
+        setInviteMessage(d.message||"Nalog klijenta je kreiran. Predajte kredencijale klijentu bezbednim kanalom.");
+      }else{
+        setInviteMessage(d.message||"Email poziv je poslat klijentu.");
+        setInviteEmail("");setInviteCompany(null);setInvitePlan("basic");
+      }
+      router.refresh();
+    }catch(e:any){setInviteMessage(e?.message||"Klijent nije dodat.");}
+    finally{setInviteBusy(false);}
   }
+
 
   async function assignAll(type:"receipts"|"documents") {
     setIntakeBusy(type);
@@ -204,7 +257,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
 
       {settings.notify_deadlines&&<div className="grid deadline-grid"><div className="card deadline-card"><CalendarDays/><div><span>Obračun prethodnog meseca</span><b>do 10. u mesecu</b><small>{previousMonthLabel()} → {dueDate(10)}</small></div></div><div className="card deadline-card"><FileText/><div><span>Fakture</span><b>do 10. u mesecu</b><small>rok {dueDate(10)}</small></div></div><div className="card deadline-card"><ReceiptText/><div><span>PDV prijava</span><b>15. u mesecu</b><small>rok {dueDate(15)}</small></div></div></div>}
 
-      <section className="accountant-section" id="clients"><div className="section-title accountant-client-title"><div><span className="pill"><Users size={13}/> KLIJENTI</span><h2>Klijenti i primljena dokumentacija</h2></div><div className="actions"><button className="btn btn-primary" onClick={()=>setAddOpen(true)}><Plus size={16}/> Pošalji zahtev</button></div></div><div className="accountant-client-tools"><div className="accountant-client-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pretraži po nazivu ili PIB-u"/></div><span className="muted">{filteredClients.length} / {organizations.length} klijenata</span></div>
+      <section className="accountant-section" id="clients"><div className="section-title accountant-client-title"><div><span className="pill"><Users size={13}/> KLIJENTI</span><h2>Klijenti i primljena dokumentacija</h2></div><div className="actions"><button className="btn btn-primary" onClick={openAddClient}><Plus size={16}/> Dodaj novog klijenta</button></div></div><div className="accountant-client-tools"><div className="accountant-client-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pretraži po nazivu ili PIB-u"/></div><span className="muted">{filteredClients.length} / {organizations.length} klijenata</span></div>
       <div className="grid accountant-client-grid">{filteredClients.map((c:any)=><a className="card accountant-client-card" href={`/app/accountant/clients/${c.organization_id}`} key={c.organization_id}><div className={`client-pending-badge ${c.pendingWork===0?"is-clear":""}`} title={`Neodrađeno: ${c.pendingReceipts} računa i ${c.pendingDocuments} dokumenata`} aria-label={`${c.pendingWork} neodrađenih stavki`}><Bell size={13}/><b>{c.pendingWork}</b></div><div className="client-card-identity"><ClientLogo organization={c}/><div className="accountant-client-top"><div><h3>{c.name}</h3><span>PIB {c.pib||"—"}</span></div></div></div><div className="accountant-client-kpis"><div><span>Računi</span><b>{c.receiptCount}</b><small>raspoređeno klijentu</small></div><div><span>Dokumenti</span><b>{c.documentCount}</b><small>raspoređeno klijentu</small></div><div><span>Ulazni PDV</span><b>{money(c.vat)}</b><small>konačno prihvaćen PDV</small></div></div><div className="client-open">Otvori klijenta / preuzimanje / štampa →</div></a>)}{filteredClients.length===0&&<div className="card empty-client-search">Nema klijenta za zadatu pretragu.</div>}</div></section>
 
       <section className="accountant-section"><div className="section-title"><div><span className="pill"><Archive size={13}/> PDV PREGLED</span><h2>Ulazni PDV po klijentu</h2></div></div><div className="card vat-table"><div className="table-wrap"><table><thead><tr><th>Klijent</th><th>Računi</th><th>Prihvaćen ulazni PDV</th><th></th></tr></thead><tbody>{filteredClients.map((c:any)=><tr key={c.organization_id}><td><b>{c.name}</b></td><td>{c.receiptCount}</td><td><b>{money(c.vat)}</b></td><td><a className="btn" href={`/app/accountant/clients/${c.organization_id}`}>Pregled / arhiva</a></td></tr>)}</tbody></table></div></div></section>
@@ -214,7 +267,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
 
     {assignmentRequest&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!assignmentBusy)setAssignmentRequest(null)}}><div className="modal assign-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Dodeli klijenta zaposlenom</h2></div><button className="btn" disabled={assignmentBusy} onClick={()=>setAssignmentRequest(null)}><X size={16}/> Zatvori</button></div><p className="muted"><b>{assignmentRequest.sender_organization?.name||"Novi klijent"}</b> je prihvaćen tek kada kliknete dugme ispod. Izaberite zaposlenog kome klijent pripada ili ga ostavite kod ADMIN knjigovođe.</p><div className="field"><label>Dodela klijenta</label><select className="select" value={assignmentEmployee} onChange={e=>setAssignmentEmployee(e.target.value)}><option value="">ADMIN knjigovođa / ostavi kod mene</option>{assignableEmployees.map((employee:any)=><option key={employee.user_id} value={employee.user_id}>{employee.full_name||employee.username||employee.auth_email||"Zaposleni"}</option>)}</select></div>{assignableEmployees.length===0&&<div className="demo-box">Nemate dodatih zaposlenih. Klijent će biti dodeljen ADMIN knjigovođi.</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} onClick={approveAndAssign} disabled={assignmentBusy}>{assignmentBusy?"Dodeljujem…":"Dodeli i prihvati klijenta"}</button></div></div>}
 
-    {addOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setAddOpen(false)}}><div className="modal add-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Pošalji zahtev klijentu</h2></div><button className="btn" onClick={()=>setAddOpen(false)}><X size={16}/> Zatvori</button></div><form onSubmit={addClient}><p className="muted">Unesite email ili telefon klijenta i izaberite FiscalBox paket za njega. Ako klijent još nema nalog, izabrani paket se prenosi na registraciju i predračun se automatski kreira čim se nalog aktivira.</p><div className="invite-channel-switch"><button type="button" className={inviteChannel==="email"?"active":""} onClick={()=>{setInviteChannel("email");setInviteContact("")}}>Email</button><button type="button" className={inviteChannel==="sms"?"active":""} onClick={()=>{setInviteChannel("sms");setInviteContact("")}}>SMS</button></div><div className="field" style={{marginTop:14}}><label>{inviteChannel==="email"?"Email klijenta":"Telefon klijenta"}</label><input className="input" type={inviteChannel==="email"?"email":"tel"} value={inviteContact} onChange={e=>setInviteContact(e.target.value)} placeholder={inviteChannel==="email"?"firma@domen.rs":"+381601234567"} required/></div><div className="field"><label>Pretplata klijenta</label><select className="select" value={invitePlan} onChange={e=>setInvitePlan(e.target.value==="premium"?"premium":"basic")}><option value="basic">BASIC — 1.250 RSD mesečno</option><option value="premium">PREMIUM — 1.790 RSD mesečno</option></select><small className="muted">Knjigovođa ne plaća pretplatu. Paket se odnosi isključivo na klijenta.</small></div>{inviteMessage&&<div className="demo-box">{inviteMessage}</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={inviteBusy||!inviteContact.trim()}>{inviteBusy?"Šaljem zahtev…":"Pošalji zahtev"}</button></form></div></div>}
+    {addOpen&&<div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!inviteBusy)setAddOpen(false)}}><div className="modal add-client-modal"><div className="modal-head"><div><span className="pill">NOVI KLIJENT</span><h2>Dodaj novog klijenta</h2></div><button className="btn" disabled={inviteBusy} onClick={()=>setAddOpen(false)}><X size={16}/> Zatvori</button></div><form onSubmit={addClient}><p className="muted">Izaberite firmu i paket. Email šalje poziv klijentu, dok Ručno omogućava da knjigovođa odmah otvori nalog i sam dodeli kredencijale — bez email potvrde.</p><div className="invite-channel-switch"><button type="button" className={inviteMode==="email"?"active":""} onClick={()=>changeInviteMode("email")}>Email</button><button type="button" className={inviteMode==="manual"?"active":""} onClick={()=>changeInviteMode("manual")}>Ručno</button></div><div style={{marginTop:14}}><CompanyLookup value={inviteCompany} onSelect={selectInviteCompany} label="PIB klijenta" required showDetails={true}/></div><div className="field" style={{marginTop:14}}><label>Email klijenta</label><input className="input" type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="firma@domen.rs" required/><small className="muted">{inviteMode==="manual"?"Email se upisuje u nalog, ali potvrda emaila nije potrebna.":"Na ovaj email stiže aktivacioni poziv."}</small></div><div className="field"><label>Pretplata klijenta</label><select className="select" value={invitePlan} onChange={e=>setInvitePlan(e.target.value==="premium"?"premium":"basic")}><option value="basic">BASIC — 1.250 RSD mesečno</option><option value="premium">PREMIUM — 1.790 RSD mesečno</option></select><small className="muted">Knjigovođa ne plaća pretplatu. Paket se odnosi isključivo na klijenta.</small></div>{inviteMode==="manual"&&<div className="manual-client-credentials"><div className="manual-client-credentials-head"><KeyRound size={18}/><div><b>Kredencijali klijenta</b><span>Knjigovođa ih generiše i predaje klijentu.</span></div><button type="button" className="btn" onClick={()=>{setManualUsername(usernameFromCompany(inviteCompany));setManualPassword(strongPassword());}}>Generiši ponovo</button></div><div className="field"><label>Korisničko ime</label><input className="input mono" value={manualUsername} onChange={e=>setManualUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g,""))} placeholder="firma_1234" required/></div><div className="field"><label>Lozinka</label><div className="manual-credential-row"><input className="input mono" value={manualPassword} onChange={e=>setManualPassword(e.target.value)} required/><button type="button" className="btn" onClick={()=>setManualPassword(strongPassword())}>Nova lozinka</button></div></div><small className="muted">Lozinka se ne čuva u čitljivom obliku. Sačuvajte je sada i predajte klijentu bezbednim kanalom.</small></div>}{createdCredentials&&<div className="created-client-credentials"><b>✓ Nalog klijenta je aktivan</b><span>{createdCredentials.company}</span><div><small>Email</small><code>{createdCredentials.email}</code></div><div><small>Korisničko ime</small><code>{createdCredentials.username}</code><button type="button" onClick={()=>navigator.clipboard?.writeText(createdCredentials.username)}><Copy size={14}/></button></div><div><small>Lozinka</small><code>{createdCredentials.password}</code><button type="button" onClick={()=>navigator.clipboard?.writeText(createdCredentials.password)}><Copy size={14}/></button></div><div><small>Paket</small><code>{String(createdCredentials.plan).toUpperCase()}</code></div>{createdCredentials.proformaError&&<small className="error">Predračun: {createdCredentials.proformaError}</small>}</div>}{inviteMessage&&<div className="demo-box">{inviteMessage}</div>}<button className="btn btn-primary" style={{width:"100%",marginTop:16}} disabled={inviteBusy||!inviteCompany||!inviteEmail.trim()||Boolean(createdCredentials)}>{inviteBusy?(inviteMode==="manual"?"Kreiram nalog…":"Šaljem poziv…"):(inviteMode==="manual"?"Kreiraj nalog klijenta":"Pošalji email poziv")}</button></form></div></div>}
   </div>;
 }
 

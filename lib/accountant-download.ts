@@ -9,13 +9,23 @@ function receiptName(r:any,index:number){return `${String(index+1).padStart(3,'0
 
 export async function buildAccountantArchive(opts:{admin:any;accountantUserId:string;organizationIds:string[];type:'receipts'|'documents';month?:string;year?:string}){
   const orgIds=Array.from(new Set(opts.organizationIds.filter(Boolean)));if(!orgIds.length)throw new Error('Nema povezanih klijenata.');
-  const {data:orgs}=await opts.admin.from('organizations').select('id,name,pib').in('id',orgIds);const orgMap=new Map((orgs||[]).map((o:any)=>[String(o.id),o]));
+  const {data:orgs}=await opts.admin.from('organizations').select('id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,contact_email,contact_phone').in('id',orgIds);const orgMap=new Map((orgs||[]).map((o:any)=>[String(o.id),o]));
   const zip=new JSZip();const now=new Date().toISOString();let count=0;
   if(opts.type==='receipts'){
     const {data:rows,error}=await opts.admin.from('receipts').select('*').in('organization_id',orgIds).not('sent_to_accountant_at','is',null).order('sdc_time',{ascending:false}).limit(5000);if(error)throw error;
     const receipts=(rows||[]).filter((r:any)=>inPeriod(r.sdc_time||r.created_at,opts.month,opts.year));
     const statusRows:any[]=[];
-    receipts.forEach((r:any,index:number)=>{const org:any=orgMap.get(String(r.organization_id));const folder=`${cleanName(org?.name||'Klijent')}/Racuni`;zip.file(`${folder}/${receiptName(r,index)}`,buildReceiptArchivePdf(r,org));statusRows.push({accountant_user_id:opts.accountantUserId,organization_id:r.organization_id,receipt_id:r.id,opened_at:now,downloaded_at:now,updated_at:now});});
+    for(let index=0;index<receipts.length;index++){
+      const r:any=receipts[index];const org:any=orgMap.get(String(r.organization_id));const folder=`${cleanName(org?.name||'Klijent')}/Racuni`;
+      zip.file(`${folder}/${receiptName(r,index)}`,buildReceiptArchivePdf(r,org));
+      if(r.receipt_source==='photo'&&r.source_image_path){
+        try{
+          const {data:image}=await opts.admin.storage.from('receipt-images').download(String(r.source_image_path));
+          if(image){const ext=cleanName(String(r.source_image_name||'racun.jpg')).split('.').pop()||'jpg';zip.file(`${folder}/Originalne_fotografije/${String(index+1).padStart(3,'0')}_${cleanName(org?.name||'klijent')}.${ext}`,Buffer.from(await image.arrayBuffer()));}
+        }catch{}
+      }
+      statusRows.push({accountant_user_id:opts.accountantUserId,organization_id:r.organization_id,receipt_id:r.id,opened_at:now,downloaded_at:now,updated_at:now});
+    }
     if(statusRows.length)await opts.admin.from('accountant_receipt_status').upsert(statusRows,{onConflict:'accountant_user_id,receipt_id'});count=receipts.length;
   }else{
     const {data:rows,error}=await opts.admin.from('documents').select('*').in('organization_id',orgIds).eq('status','sent').order('sent_at',{ascending:false}).limit(5000);if(error)throw error;

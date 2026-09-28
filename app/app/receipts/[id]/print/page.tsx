@@ -57,7 +57,7 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
 
   const admin=createAdminClient();
   const {data:org}=await admin.from("organizations")
-    .select("id,name,pib,registration_number,address,municipality,company_id,activity_code,activity_name")
+    .select("id,name,pib,registration_number,legal_form,address,municipality,company_id,activity_code,activity_name,contact_email,contact_phone")
     .eq("id",r.organization_id).maybeSingle();
 
   const normalized=normalizeVerification(r.raw_json || {});
@@ -118,13 +118,13 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
     .select("role").eq("organization_id",r.organization_id).eq("user_id",user.id).maybeSingle();
   const isAccountantReview=accountantMembership?.role==="accountant";
   let vatAi:any=null;
-  if(isAccountantReview){
+  if(isAccountantReview&&r.receipt_source!=="photo"){
     vatAi=await ensureVatAiAnalysis(admin,r,org);
   }
 
   let qrDataUrl="";
   try{
-    qrDataUrl=await QRCode.toDataURL(r.qr_url,{errorCorrectionLevel:"M",margin:1,width:360});
+    if(r.receipt_source!=="photo"&&r.qr_url)qrDataUrl=await QRCode.toDataURL(r.qr_url,{errorCorrectionLevel:"M",margin:1,width:360});
   }catch{}
 
   const raw=r.raw_json || {};
@@ -191,14 +191,21 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
       </div>
       <div className="party">
         <div className="party-title">KUPAC / FIRMA NA KOJU GLASI RAČUN</div>
-        <div className="party-name">{buyerName || (buyerPib ? "Naziv kupca nije dostupan u registru" : "Račun nema evidentiran PIB pravnog lica kupca")}</div>
-        <div className="kv"><span>PIB kupca</span><b>{buyerPib || "—"}</b></div>
-        <div className="kv"><span>Matični broj</span><b>{buyerMb || "—"}</b></div>
-        <div className="kv"><span>Adresa</span><b>{buyerAddress || "—"}</b></div>
-        <div className="kv"><span>Mesto</span><b>{buyerCity || "—"}</b></div>
-        {registrySource && <div className="registry-note">✓ Firma proverena u registru: {registrySource}{registryChecked?` · ${dateTime(registryChecked)}`:""}</div>}
+        <div className="party-name">{org?.name || buyerName || "—"}</div>
+        <div className="kv"><span>Pravna forma</span><b>{org?.legal_form || "—"}</b></div>
+        <div className="kv"><span>PIB kupca</span><b>{org?.pib || buyerPib || "—"}</b></div>
+        <div className="kv"><span>Matični broj</span><b>{org?.registration_number || buyerMb || "—"}</b></div>
+        <div className="kv"><span>Adresa</span><b>{org?.address || buyerAddress || "—"}</b></div>
+        <div className="kv"><span>Mesto</span><b>{org?.municipality || buyerCity || "—"}</b></div>
+        <div className="kv"><span>Šifra delatnosti</span><b>{org?.activity_code || "—"}</b></div>
+        <div className="kv"><span>Delatnost</span><b>{org?.activity_name || "—"}</b></div>
+        <div className="kv"><span>Email</span><b>{org?.contact_email || "—"}</b></div>
+        <div className="kv"><span>Telefon</span><b>{org?.contact_phone || "—"}</b></div>
+        <div className="registry-note">✓ Podaci kupca preuzeti iz FiscalBox naloga firme.{buyerPib&&org?.pib&&normalizePib(org.pib)!==buyerPib?` PIB iz QR zapisa (${buyerPib}) se razlikuje — obavezna ručna provera.`:""}</div>
       </div>
     </section>
+
+    {r.receipt_source==="photo"&&r.source_image_path?<section className="receipt-source-photo"><b>Fotografija celog fiskalnog računa</b><img src={`/api/receipts/${r.id}/source-image`} alt="Fotografija fiskalnog računa"/><small>QR kod nije mogao da se pročita. Fotografija je sačuvana među fiskalnim računima i čeka ručnu proveru.</small></section>:null}
 
     <section className="section">
       <h2>Fiskalni podaci</h2>
@@ -236,8 +243,8 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
       <h2>Iznosi i plaćanje</h2>
       <div className="totals">
         <div className="kv"><span>Način plaćanja</span><b>{payment}</b></div>
-        <div className="kv"><span>Ukupan PDV</span><b>{money(totalTax)}</b></div>
-        <div className="kv grand"><span>UKUPAN IZNOS</span><b>{money(total)}</b></div>
+        <div className="kv"><span>Ukupan PDV</span><b>{r.receipt_source==="photo"?"Za ručnu proveru":money(totalTax)}</b></div>
+        <div className="kv grand"><span>UKUPAN IZNOS</span><b>{r.receipt_source==="photo"?"Za ručnu proveru":money(total)}</b></div>
       </div>
     </section>
 
@@ -246,10 +253,10 @@ export default async function PrintReceipt({params,searchParams}:{params:Promise
       <div className="journal">{normalized.journal}</div>
     </section>:null}
 
-    <section className="qr-area">
+    {r.receipt_source!=="photo"?<section className="qr-area">
       <div>{qrDataUrl ? <img src={qrDataUrl} alt="QR kod za verifikaciju fiskalnog računa"/> : null}</div>
       <div className="qr-link"><b>QR / link za proveru autentičnosti</b><a href={r.qr_url}>{r.qr_url}</a><p>Skeniranjem QR koda otvara se zvanična provera fiskalnog računa.</p></div>
-    </section>
+    </section>:<div className="footer-note"><b>Izvor: fotografija fiskalnog računa.</b> QR nije bio čitljiv, zato ovaj zapis zahteva ručnu proveru knjigovođe.</div>}
 
     <div className="footer-note">
       FiscalBox ne izdaje fiskalni račun, već čuva i prikazuje podatke preuzete sa verifikacionog linka. Fiskalni račun verifikuje Poreska uprava kroz sistem eFiskalizacije. NBS/APR podatak, kada je prikazan uz kupca, odnosi se na proveru pravnog subjekta, ne na verifikaciju samog fiskalnog računa. Za konačnu proveru autentičnosti koristite QR kod ili verifikacioni link iznad.
