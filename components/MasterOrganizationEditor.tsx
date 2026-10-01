@@ -7,19 +7,17 @@ type Props={
   subscription?:any;
   members:any[];
   profiles:any[];
-  organizations:any[];
   onClose:()=>void;
 };
 const profileMap=(profiles:any[])=>new Map(profiles.map((p:any)=>[String(p.user_id),p]));
 
-export default function MasterOrganizationEditor({organization,subscription,members,profiles,organizations,onClose}:Props){
+export default function MasterOrganizationEditor({organization,subscription,members,profiles,onClose}:Props){
   const accounting=organization.organization_type==='accounting';
   const [busy,setBusy]=React.useState('');
   const [message,setMessage]=React.useState('');
   const [credentials,setCredentials]=React.useState<any>(null);
   const [deleteConfirm,setDeleteConfirm]=React.useState('');
-  const [deleteOrgQuery,setDeleteOrgQuery]=React.useState('');
-  const [deleteSelectedOrgId,setDeleteSelectedOrgId]=React.useState('');
+  const [deleteNameConfirm,setDeleteNameConfirm]=React.useState('');
   const [form,setForm]=React.useState<any>({
     name:organization.name||'',pib:organization.pib||'',registration_number:organization.registration_number||'',
     legal_form:organization.legal_form||'',address:organization.address||'',municipality:organization.municipality||'',
@@ -29,13 +27,6 @@ export default function MasterOrganizationEditor({organization,subscription,memb
   const [staff,setStaff]=React.useState({full_name:'',email:'',username:'',password:'',access_role:'user'});
   const pmap=profileMap(profiles);
   const orgMembers=members.filter((m:any)=>String(m.organization_id)===String(organization.id)&&['owner','employee'].includes(m.role));
-  const normalizedDeleteQuery=deleteOrgQuery.trim().toLowerCase();
-  const deleteOrgMatches=normalizedDeleteQuery.length<1?[]:organizations
-    .filter((o:any)=>`${o.name||''} ${o.pib||''} ${o.registration_number||''}`.toLowerCase().includes(normalizedDeleteQuery))
-    .sort((a:any,b:any)=>String(a.name||'').localeCompare(String(b.name||''),'sr'))
-    .slice(0,7);
-  const deleteSelectedOrg=organizations.find((o:any)=>String(o.id)===String(deleteSelectedOrgId))||null;
-  const deleteTargetConfirmed=String(deleteSelectedOrgId)===String(organization.id);
 
   async function post(path:string,body:any,key:string){
     setBusy(key);setMessage('');
@@ -52,8 +43,8 @@ export default function MasterOrganizationEditor({organization,subscription,memb
   function genPassword(){const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';let p='Fb!';for(let i=0;i<12;i++)p+=alphabet[Math.floor(Math.random()*alphabet.length)];setStaff(v=>({...v,password:p}));}
 
   async function deleteOrganization(){
-    if(deleteConfirm.trim().toUpperCase()!=='OBRISI'||!deleteTargetConfirmed){
-      setMessage('Za trajno brisanje prvo izaberite ovu organizaciju iz ponuđene baze i zatim upišite OBRISI.');
+    if(deleteConfirm.trim().toUpperCase()!=='OBRISI'||deleteNameConfirm.trim()!==String(organization.name||'').trim()){
+      setMessage('Za trajno brisanje upišite OBRISI i tačan naziv organizacije.');
       return;
     }
     const label=accounting?'knjigovođu':'firmu';
@@ -89,31 +80,9 @@ export default function MasterOrganizationEditor({organization,subscription,memb
 
           <div className="master-danger-zone">
             <div><span className="pill danger">OPASNA ZONA</span><h3>Trajno obriši {accounting?'knjigovođu':'firmu'}</h3><p className="muted">Ovo briše organizaciju i njene fiskalne račune, dokumente, pretplatu, veze sa knjigovođom/klijentima i storage fajlove. Korisnički nalozi koji nisu član druge organizacije takođe se brišu. Deljeni korisnici ostaju sačuvani.</p></div>
-            <div className="field master-danger-org-picker">
-              <label>Pronađite i izaberite organizaciju iz FiscalBox baze</label>
-              <input
-                className="input"
-                value={deleteOrgQuery}
-                onChange={e=>{setDeleteOrgQuery(e.target.value);setDeleteSelectedOrgId('');}}
-                placeholder="Počnite da kucate naziv, PIB ili matični broj"
-                autoComplete="off"
-              />
-              {deleteOrgMatches.length>0&&!deleteSelectedOrgId&&<div className="master-danger-org-results" role="listbox" aria-label="Organizacije iz baze">
-                {deleteOrgMatches.map((o:any)=><button key={o.id} type="button" role="option" onClick={()=>{setDeleteSelectedOrgId(String(o.id));setDeleteOrgQuery(String(o.name||''));setMessage('')}}>
-                  <span><b>{o.name}</b><small>{o.organization_type==='accounting'?'KNJIGOVOĐA':'FIRMA'}</small></span>
-                  <span className="muted">PIB {o.pib||'—'} · MB {o.registration_number||'—'}</span>
-                </button>)}
-              </div>}
-              {normalizedDeleteQuery&&deleteOrgMatches.length===0&&!deleteSelectedOrgId&&<small className="muted">Nema organizacije u FiscalBox bazi za ovu pretragu.</small>}
-              {deleteSelectedOrg&&<div className={`master-danger-selected ${deleteTargetConfirmed?'ok':'wrong'}`}>
-                <b>{deleteTargetConfirmed?'✓ Izabrana je organizacija koju trenutno uređujete':'⚠ Izabrana je druga organizacija'}</b>
-                <span>{deleteSelectedOrg.name} · PIB {deleteSelectedOrg.pib||'—'}</span>
-                {!deleteTargetConfirmed&&<small>Za brisanje druge organizacije zatvorite ovaj prozor i otvorite baš tu organizaciju iz liste.</small>}
-                <button type="button" className="master46-mini-button" onClick={()=>{setDeleteSelectedOrgId('');setDeleteOrgQuery('')}}>Promeni izbor</button>
-              </div>}
-            </div>
-            <div className="field"><label>Za završnu potvrdu upišite OBRISI</label><input className="input" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="OBRISI"/></div>
-            <button className="btn danger-outline" disabled={!!busy||deleteConfirm.trim().toUpperCase()!=='OBRISI'||!deleteTargetConfirmed} onClick={deleteOrganization}><Trash2 size={15}/> {busy==='delete-org'?'Brišem…':accounting?'Trajno obriši knjigovođu':'Trajno obriši firmu'}</button>
+            <div className="field"><label>Upišite tačan naziv organizacije</label><input className="input" value={deleteNameConfirm} onChange={e=>setDeleteNameConfirm(e.target.value)} placeholder={organization.name}/></div>
+            <div className="field"><label>Za potvrdu upišite OBRISI</label><input className="input" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="OBRISI"/></div>
+            <button className="btn danger-outline" disabled={!!busy||deleteConfirm.trim().toUpperCase()!=='OBRISI'||deleteNameConfirm.trim()!==String(organization.name||'').trim()} onClick={deleteOrganization}><Trash2 size={15}/> {busy==='delete-org'?'Brišem…':accounting?'Trajno obriši knjigovođu':'Trajno obriši firmu'}</button>
           </div>
         </section>
 
