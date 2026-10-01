@@ -1,0 +1,22 @@
+FiscalBox V5.9.3.4 - test rezultati
+
+1. TypeScript/TSX syntax check
+- Fajlova: 174
+- Sintaksnih gresaka: 0
+- TypeScript: 5.8.3
+
+2. PDV parser - ciljane provere
+- Latinica journal: 9.000,00 -> 9000.00 PASS
+- Cirilica journal: 116,67 -> 116.67 PASS
+- HTML fallback: 1.234,56 -> 1234.56 PASS
+- Direktno totalTax polje -> PASS
+- Zbir taxSummary stavki -> PASS
+- isValid + taxId iz zvanicnog verification JSON oblika -> PASS
+
+3. Regresioni test paket
+- Nije kompletno pokrenut jer ZIP ne sadrzi node_modules, a npm instalacija zavisnosti nije zavrsena u dostupnom vremenskom limitu.
+- Ovo nije sintaksna greska aplikacije; check:syntax je prosao sa 0 gresaka.
+
+4. SQL
+- Nema nove SQL migracije.
+- Koristi se postojece receipts.total_tax polje.

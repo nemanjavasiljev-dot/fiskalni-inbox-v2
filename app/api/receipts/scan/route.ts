@@ -5,6 +5,7 @@ import { classifyReceiptCategory } from "@/lib/receipt-category";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lookupCompanyByPib } from "@/lib/company-registry/company-registry-service";
 import { detectWarrantyCandidate } from "@/lib/warranty";
+import { ensureVatAiAnalysis } from "@/lib/vat-ai";
 
 async function resolveBuyer(pib:string){
   const admin=createAdminClient();
@@ -32,6 +33,39 @@ function buyerPatch(pib:string,buyer:any){
   };
 }
 
+function canonicalQr(raw:string){
+  try{
+    const u=new URL(raw.trim());
+    u.hash="";
+    const sorted=new URLSearchParams();
+    Array.from(u.searchParams.entries()).sort(([a,av],[b,bv])=>a.localeCompare(b)||av.localeCompare(bv)).forEach(([k,v])=>sorted.append(k,v));
+    u.search=sorted.toString();
+    u.hostname=u.hostname.toLowerCase();
+    return u.toString();
+  }catch{return raw.trim();}
+}
+
+function token(v:unknown){return String(v??"").trim().toUpperCase().replace(/\s+/g,"");}
+function digits(v:unknown){return String(v??"").replace(/\D/g,"");}
+
+function receiptFingerprint(normalized:any,qrUrl:string){
+  const merchant=digits(normalized?.merchant_pib);
+  const invoice=token(normalized?.invoice_number);
+  const sdc=normalized?.sdc_time ? new Date(normalized.sdc_time).toISOString().replace(/\.\d{3}Z$/,"Z") : "";
+  if(invoice && (merchant || sdc)) return `v1:${merchant||"-"}|${invoice}|${sdc||"-"}`;
+  return `qr:${canonicalQr(qrUrl)}`;
+}
+
+async function findDuplicate(supabase:any,organizationId:string,qrUrl:string,fingerprint?:string|null){
+  const byQr=await supabase.from("receipts").select("*").eq("organization_id",organizationId).eq("qr_url",qrUrl).maybeSingle();
+  if(byQr.data)return byQr.data;
+  if(fingerprint){
+    const byFingerprint=await supabase.from("receipts").select("*").eq("organization_id",organizationId).eq("receipt_fingerprint",fingerprint).maybeSingle();
+    if(byFingerprint.data)return byFingerprint.data;
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data:{ user } } = await supabase.auth.getUser();
@@ -40,22 +74,23 @@ export async function POST(request: Request) {
   const body = await request.json();
   const organizationId = String(body.organization_id || "");
   const qrUrl = String(body.qr_url || "").trim();
+  const confirmWithoutBuyerPib = body.confirm_without_buyer_pib === true;
   if (!organizationId || !qrUrl) return NextResponse.json({error:"Nedostaju podaci."},{status:400});
   if (!isAllowedFiscalUrl(qrUrl)) return NextResponse.json({error:"QR ne vodi na dozvoljeni domen Poreske uprave."},{status:400});
 
   const {data:allowed,error:accessError}=await supabase.rpc('can_manage_org_documents',{org:organizationId});
   if(accessError||!allowed)return NextResponse.json({error:'Nemate pravo dodavanja računa za ovu firmu.'},{status:403});
 
-  const { data: existing } = await supabase.from("receipts").select("*").eq("organization_id",organizationId).eq("qr_url",qrUrl).maybeSingle();
-  if (existing) {
-    const existingNormalized=normalizeVerification(existing.raw_json||{});
-    const existingPib=existingNormalized.buyer_pib || extractBuyerPib(existing.raw_json||{}) || existing.buyer_pib || null;
-    if(existingPib && (!existing.buyer_pib || !existing.buyer_name)){
+  const existingByQr = await findDuplicate(supabase,organizationId,qrUrl,null);
+  if (existingByQr) {
+    const existingNormalized=normalizeVerification(existingByQr.raw_json||{});
+    const existingPib=existingNormalized.buyer_pib || extractBuyerPib(existingByQr.raw_json||{}) || existingByQr.buyer_pib || null;
+    if(existingPib && (!existingByQr.buyer_pib || !existingByQr.buyer_name)){
       const buyer=await resolveBuyer(existingPib);
-      const {data:updated}=await supabase.from("receipts").update(buyerPatch(existingPib,buyer)).eq("id",existing.id).select("*").single();
-      if(updated)return NextResponse.json({duplicate:true,id:updated.id,receipt:updated});
+      const {data:updated}=await supabase.from("receipts").update({...buyerPatch(existingPib,buyer),buyer_pib_status:"present",bookkeeping_eligible:true}).eq("id",existingByQr.id).select("*").single();
+      if(updated)return NextResponse.json({duplicate:true,message:"Ovaj račun je već skeniran.",id:updated.id,receipt:updated});
     }
-    return NextResponse.json({duplicate:true,id:existing.id,receipt:existing});
+    return NextResponse.json({duplicate:true,message:"Ovaj račun je već skeniran.",id:existingByQr.id,receipt:existingByQr});
   }
 
   let raw:any = {};
@@ -71,17 +106,41 @@ export async function POST(request: Request) {
     status = normalized.verification_valid === false ? "nevalidan" : normalized.verification_valid === true ? "provereno" : "provera_neuspela";
   } catch(e:any) {
     raw = { verificationError:e?.message || "Provera nije uspela." };
+    normalized = normalizeVerification(raw);
   }
+
+  const fingerprint=receiptFingerprint(normalized,qrUrl);
+  const duplicate=await findDuplicate(supabase,organizationId,qrUrl,fingerprint);
+  if(duplicate)return NextResponse.json({duplicate:true,message:"Ovaj račun je već skeniran.",id:duplicate.id,receipt:duplicate});
 
   const classification = classifyReceiptCategory(raw, normalized.merchant_name || null);
   const warranty = detectWarrantyCandidate(raw, normalized.merchant_name || null, classification.category);
   const buyerPib=normalized.buyer_pib || extractBuyerPib(raw) || null;
+
+  if(!buyerPib && !confirmWithoutBuyerPib){
+    return NextResponse.json({
+      duplicate:false,
+      needs_buyer_pib_confirmation:true,
+      warning:"Račun nema ID / PIB kupca.",
+      status,
+      preview:{
+        merchant_name:normalized.merchant_name||null,
+        invoice_number:normalized.invoice_number||null,
+        sdc_time:normalized.sdc_time||null,
+        total_amount:normalized.total_amount??null,
+        total_tax:normalized.total_tax??null
+      }
+    });
+  }
+
   const buyer=buyerPib?await resolveBuyer(buyerPib):null;
+  const bookkeepingEligible=Boolean(buyerPib);
 
   const { data, error } = await supabase.from("receipts").insert({
     organization_id:organizationId,
     created_by:user.id,
     qr_url:qrUrl,
+    receipt_fingerprint:fingerprint,
     merchant_name:normalized.merchant_name || null,
     merchant_pib:normalized.merchant_pib || null,
     invoice_number:normalized.invoice_number || null,
@@ -90,6 +149,9 @@ export async function POST(request: Request) {
     total_tax:normalized.total_tax ?? null,
     payment_method:normalized.payment_method || null,
     ...(buyerPib?buyerPatch(buyerPib,buyer):{}),
+    buyer_pib_status:buyerPib?"present":"missing",
+    saved_without_buyer_pib:!buyerPib,
+    bookkeeping_eligible:bookkeepingEligible,
     category:classification.category,
     category_source:classification.source,
     category_confidence:classification.confidence,
@@ -101,9 +163,19 @@ export async function POST(request: Request) {
   }).select("*").single();
 
   if(error?.code==='23505'){
-    const {data:duplicate}=await supabase.from('receipts').select('*').eq('organization_id',organizationId).eq('qr_url',qrUrl).maybeSingle();
-    if(duplicate)return NextResponse.json({duplicate:true,id:duplicate.id,receipt:duplicate});
+    const dup=await findDuplicate(supabase,organizationId,qrUrl,fingerprint);
+    if(dup)return NextResponse.json({duplicate:true,message:"Ovaj račun je već skeniran.",id:dup.id,receipt:dup});
   }
   if (error) return NextResponse.json({error:'Račun nije sačuvan. Pokušajte ponovo.'},{status:400});
-  return NextResponse.json({duplicate:false,id:data.id,status,receipt:data,classification,warranty});
+
+  let aiAnalysis:any=null;
+  try{
+    const admin=createAdminClient();
+    const {data:organization}=await admin.from("organizations").select("id,pib,activity_code,activity_name").eq("id",organizationId).maybeSingle();
+    aiAnalysis=await ensureVatAiAnalysis(admin,data,organization||{});
+  }catch(e:any){
+    console.warn("[FiscalBox receipt] VAT AI scan analysis failed",String(e?.message||e).slice(0,180));
+  }
+
+  return NextResponse.json({duplicate:false,id:data.id,status,receipt:data,classification,warranty,aiAnalysis,bookkeeping_eligible:bookkeepingEligible});
 }

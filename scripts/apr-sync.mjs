@@ -1,10 +1,12 @@
 import https from 'node:https';
 
+const REGISTRY_KIND = String(process.env.APR_REGISTRY_KIND || 'company').toLowerCase() === 'entrepreneur' ? 'entrepreneur' : 'company';
 const APR_URL =
   process.env.APR_OPEN_DATA_URL ||
+  (REGISTRY_KIND === 'entrepreneur' ? process.env.APR_OPEN_DATA_ENTREPRENEURS_URL : '') ||
   'https://openapi.apr.gov.rs/api/opendata/companies';
-// Company Open Data endpoint je već potvrđen u postojećem FiscalBox sync-u.
-// Za preduzetnike i dalje je obavezan zaseban zvanični feed/API URL.
+// Privredna drustva imaju javni Open Data endpoint. Za preduzetnike podesiti
+// APR_OPEN_DATA_ENTREPRENEURS_URL na zvanicni APR feed/API koji korisnik ugovori ili dobije.
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||
@@ -21,8 +23,6 @@ const BATCH_SIZE = Math.max(
     Number(process.env.APR_SYNC_BATCH_SIZE || 750)
   )
 );
-
-const REGISTRY_KIND = String(process.env.APR_REGISTRY_KIND || 'company').toLowerCase() === 'entrepreneur' ? 'entrepreneur' : 'company';
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error(
@@ -431,6 +431,11 @@ function rowFrom(
     'tax identification number', 'taxId', 'taxNumber'
   ]));
   const pib = /^\d{9}$/.test(pibCandidate) ? pibCandidate : null;
+  const emailCandidate = String(deepScalar(obj, [
+    'email','e-mail','email address','contact email','adresa elektronske poste',
+    'adresa elektronske pošte','elektronska posta','elektronska pošta'
+  ]) || '').trim().toLowerCase();
+  const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCandidate) ? emailCandidate : null;
 
   return {
     name,
@@ -441,6 +446,8 @@ function rowFrom(
     pib,
 
     registry_kind: REGISTRY_KIND,
+
+    contact_email: contactEmail,
 
     address:
       address || null,

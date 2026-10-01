@@ -18,6 +18,20 @@ function scalarFromObject(input: Record<string, unknown>, aliases: string[]) {
   }
   return '';
 }
+function deepScalar(input:unknown,aliases:string[],maxDepth=5){
+  const wanted=new Set(aliases.map(keyify));
+  const seen=new Set<unknown>();
+  function walk(value:unknown,depth:number):string{
+    if(!value||typeof value!=='object'||seen.has(value)||depth>maxDepth)return '';
+    seen.add(value);
+    if(Array.isArray(value)){for(const item of value.slice(0,100)){const found=walk(item,depth+1);if(found)return found;}return '';}
+    const obj=value as Record<string,unknown>;
+    for(const [key,v] of Object.entries(obj)){if(wanted.has(keyify(key))&&['string','number','boolean'].includes(typeof v)){const text=String(v??'').trim();if(text)return text;}}
+    for(const v of Object.values(obj)){const found=walk(v,depth+1);if(found)return found;}
+    return '';
+  }
+  return walk(input,0);
+}
 function objectByAlias(input:Record<string,unknown>,aliases:string[]){
   const wanted=new Set(aliases.map(keyify));
   for(const [key,value] of Object.entries(input)) if(wanted.has(keyify(key))&&value&&typeof value==='object'&&!Array.isArray(value)) return value as Record<string,unknown>;
@@ -31,6 +45,15 @@ function parseDate(value: string) {
   if (!value) return null;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+function normalizeEmail(value: string) {
+  const email=String(value||'').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)?email:null;
+}
+function inferRegistryKind(obj:Record<string,unknown>, legalForm:string, name:string){
+  const explicit=scalarFromObject(obj,['registry kind','registrykind','tip subjekta','tip registra','entity type','entitytype','subjecttype']);
+  const text=`${explicit} ${legalForm} ${name}`.toLowerCase();
+  return /(preduzet|preduzetnik|entrepreneur|sole proprietor|\bpr\b)/i.test(text)?'entrepreneur':'company';
 }
 function normalizeCandidate(obj: Record<string, unknown>): AprCompany | null {
   const name = scalarFromObject(obj, ['poslovno ime','poslovnoime','business name','businessname','naziv','companyname','name','puno poslovno ime']);
@@ -52,6 +75,8 @@ function normalizeCandidate(obj: Record<string, unknown>): AprCompany | null {
   const status = scalarFromObject(obj, ['status','status subjekta','registracioni status','registration status','registrystatus']);
   const founded = scalarFromObject(obj, ['datum osnivanja','datum registracije','founded at','foundedat','registration date','registrationdate','incorporationDate']);
   const sourceId = scalarFromObject(obj, ['apr id','aprid','source id','sourceid','id subjekta','subjectid','entityid','id']);
+  const email = normalizeEmail(deepScalar(obj, ['email','e-mail','email address','electronic mail','adresa elektronske poste','adresa elektronske pošte','elektronska posta','elektronska pošta','kontakt email','contact email']));
+  const registryKind=inferRegistryKind(obj,legalForm,name);
 
   return {
     name: name || `APR subjekt ${registration || pib}`,
@@ -71,6 +96,8 @@ function normalizeCandidate(obj: Record<string, unknown>): AprCompany | null {
     apr_raw: obj,
     source_status: 'apr',
     manual_review_required: false,
+    registry_kind: registryKind,
+    contact_email: email,
   };
 }
 function candidateScore(c: AprCompany) { return (c.registration_number ? 4 : 0) + (c.pib ? 3 : 0) + (c.name ? 2 : 0) + (c.registry_status ? 1 : 0); }
@@ -189,8 +216,8 @@ export class APRSyncService {
     const admin = createAdminClient();let existing:any=null;
     if(company.registration_number){const {data}=await admin.from('companies').select('*').eq('registration_number',company.registration_number).maybeSingle();existing=data;}
     if(!existing&&company.pib){const {data}=await admin.from('companies').select('*').eq('pib',company.pib).maybeSingle();existing=data;}
-    const payload:any={name:company.name,normalized_name:normalizeCompanyName(company.name),registration_number:company.registration_number,pib:company.pib,address:company.address,city:company.city,municipality:company.municipality,postal_code:company.postal_code,legal_form:company.legal_form,activity_code:company.activity_code,activity_name:company.activity_name,registry_status:company.registry_status,founded_at:company.founded_at,apr_source_id:company.apr_source_id,apr_last_sync:new Date().toISOString(),apr_raw:company.apr_raw??null,source_status:'apr',manual_review_required:false,updated_at:new Date().toISOString()};
-    if(existing){const changed=['name','registration_number','pib','address','city','municipality','postal_code','legal_form','activity_code','activity_name','registry_status','founded_at','apr_source_id'].some(k=>String(existing[k]??'')!==String(payload[k]??''));const {data,error}=await admin.from('companies').update(payload).eq('id',existing.id).select('*').single();if(error)throw error;if(changed)await admin.from('company_audit_log').insert({company_id:existing.id,action:'APR_SYNC_UPDATE',source:'apr',details:{run_id:runId||null}});return{company:publicCompany(data),inserted:false,updated:changed};}
+    const payload:any={name:company.name,normalized_name:normalizeCompanyName(company.name),registration_number:company.registration_number,pib:company.pib,address:company.address,city:company.city,municipality:company.municipality,postal_code:company.postal_code,legal_form:company.legal_form,activity_code:company.activity_code,activity_name:company.activity_name,registry_status:company.registry_status,founded_at:company.founded_at,apr_source_id:company.apr_source_id,apr_last_sync:new Date().toISOString(),apr_raw:company.apr_raw??null,source_status:'apr',manual_review_required:false,registry_kind:company.registry_kind||'company',contact_email:company.contact_email||existing?.contact_email||null,contact_email_source:company.contact_email?'apr':existing?.contact_email_source||null,contact_email_updated_at:company.contact_email?new Date().toISOString():existing?.contact_email_updated_at||null,updated_at:new Date().toISOString()};
+    if(existing){const changed=['name','registration_number','pib','address','city','municipality','postal_code','legal_form','activity_code','activity_name','registry_status','founded_at','apr_source_id','registry_kind','contact_email'].some(k=>String(existing[k]??'')!==String(payload[k]??''));const {data,error}=await admin.from('companies').update(payload).eq('id',existing.id).select('*').single();if(error)throw error;if(changed)await admin.from('company_audit_log').insert({company_id:existing.id,action:'APR_SYNC_UPDATE',source:'apr',details:{run_id:runId||null}});return{company:publicCompany(data),inserted:false,updated:changed};}
     const {data,error}=await admin.from('companies').insert({...payload,created_at:new Date().toISOString()}).select('*').single();if(error)throw error;await admin.from('company_audit_log').insert({company_id:data.id,action:'APR_SYNC_INSERT',source:'apr',details:{run_id:runId||null}});return{company:publicCompany(data),inserted:true,updated:false};
   }
   static async searchAndSync(query: string, limit = 15) {

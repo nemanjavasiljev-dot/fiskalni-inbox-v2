@@ -209,6 +209,7 @@ export default function CompanySearch({
           <div><span>Naziv</span><b>{value.name}</b></div>
           <div><span>Matični broj</span><b>{value.registration_number || '—'}</b></div>
           {value.activity_code && <div><span>Šifra delatnosti</span><b>{value.activity_code}</b></div>}
+          {value.contact_email && <div><span>Email iz registra</span><b>{value.contact_email}</b></div>}
           <div className="company-search-source">
             <span>{value.registry_kind === 'entrepreneur' ? 'APR registar preduzetnika' : 'APR registar privrednih društava'} · poslednja APR sinhronizacija: {fmtSync(value.apr_last_sync)}</span>
             {allowRefresh && (

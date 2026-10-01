@@ -25,6 +25,9 @@ export type CompanyRecord = {
   source_status?: string;
   manual_review_required?: boolean;
   registry_kind?: 'company' | 'entrepreneur' | 'other';
+  contact_email?: string | null;
+  contact_email_source?: string | null;
+  contact_email_updated_at?: string | null;
 };
 
 export function sanitizeCompanyQuery(value: unknown) {
@@ -81,6 +84,9 @@ export function publicCompany(company: any): CompanyRecord {
     source_status: company.source_status || undefined,
     manual_review_required: Boolean(company.manual_review_required),
     registry_kind: company.registry_kind || 'company',
+    contact_email: company.contact_email || null,
+    contact_email_source: company.contact_email_source || null,
+    contact_email_updated_at: company.contact_email_updated_at || null,
   };
 }
 

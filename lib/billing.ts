@@ -2,15 +2,43 @@ import { buildBillingPdf } from '@/lib/simple-pdf';
 import { paymentReferenceFromDocumentNumber, buildIpsPaymentString, validateIpsTextWithNbs } from '@/lib/ips-payment';
 import { sendBillingInvoiceEmail } from '@/lib/mailer';
 
-export const PLAN_PRICES: Record<string, number> = { basic: 1250, premium: 2000 };
+export const PLAN_PRICES: Record<string, number> = { basic: 1250, premium: 1790 };
 export const VAT_RATE = 0;
 
-function addCalendarMonth(date: Date) {
-  const d = new Date(date);
-  d.setMonth(d.getMonth() + 1);
-  return d;
-}
 function addDays(date: Date, days: number) { const d = new Date(date); d.setDate(d.getDate() + days); return d; }
+
+function isoDate(value: string | Date) {
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toISOString().slice(0, 10);
+}
+
+function daysInUtcMonth(year:number, monthIndex:number) {
+  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+}
+
+/**
+ * Sledeca mesecna godisnjica posle datog datuma. Ako je anchor 29/30/31,
+ * mesec bez tog dana koristi poslednji dan tog meseca, ali se originalni
+ * anchor cuva za naredne mesece (npr. 31.01 -> 28.02 -> 31.03).
+ */
+export function nextMonthlyOccurrence(anchorDay:number, after:string|Date) {
+  const d = after instanceof Date ? new Date(after) : new Date(after);
+  const anchor = Math.min(31, Math.max(1, Number(anchorDay || 1)));
+  let year = d.getUTCFullYear();
+  let month = d.getUTCMonth();
+  const candidateFor = (y:number,m:number) => {
+    const day = Math.min(anchor, daysInUtcMonth(y,m));
+    return new Date(Date.UTC(y,m,day));
+  };
+  let candidate = candidateFor(year, month);
+  const afterDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  if (candidate.getTime() <= afterDate.getTime()) {
+    month += 1;
+    if (month > 11) { month = 0; year += 1; }
+    candidate = candidateFor(year, month);
+  }
+  return isoDate(candidate);
+}
 
 async function nextDocumentNumber(admin: any, type: 'proforma'|'invoice') {
   const { data, error } = await admin.rpc('next_billing_document_number', { p_document_type: type });
@@ -30,7 +58,37 @@ async function getIssuer(admin: any) {
   return issuer;
 }
 
-export async function createPlanProforma(opts: { admin: any; organization: any; plan: string; seats?: number; recipientEmail?: string; appBillingUrl?: string }) {
+type ProformaOptions = {
+  admin: any;
+  organization: any;
+  plan: string;
+  seats?: number;
+  recipientEmail?: string;
+  appBillingUrl?: string;
+  billingCycleOn?: string | null;
+  recurring?: boolean;
+  resendExisting?: boolean;
+};
+
+async function emailExistingProforma(opts:ProformaOptions, existing:any, total:number) {
+  if (!opts.recipientEmail || opts.resendExisting === false) return null;
+  const emailResult = await sendBillingInvoiceEmail({
+    to: opts.recipientEmail,
+    organizationName: opts.organization.name,
+    invoiceNumber: existing.invoice_number,
+    plan: opts.plan,
+    totalAmount: Number(existing.total_amount || total),
+    billingUrl: opts.appBillingUrl || '',
+    pdf: buildBillingPdf(existing),
+    documentType: 'proforma'
+  });
+  if (emailResult?.sent) {
+    await opts.admin.from('billing_invoices').update({ emailed_at: new Date().toISOString(), recipient_email: opts.recipientEmail }).eq('id', existing.id);
+  }
+  return emailResult;
+}
+
+export async function createPlanProforma(opts: ProformaOptions) {
   if (!PLAN_PRICES[opts.plan]) return { invoice: null, email: null, reused: false };
   const seats = Math.max(1, Number(opts.seats || 1));
   const unit = PLAN_PRICES[opts.plan];
@@ -39,26 +97,31 @@ export async function createPlanProforma(opts: { admin: any; organization: any; 
   const vatRate = 0;
   const vat = 0;
   const total = subtotal;
+  const cycleOn = opts.billingCycleOn ? String(opts.billingCycleOn).slice(0,10) : null;
 
-  // Ne pravimo duplikat ako za isti paket/seat već postoji otvoren predračun.
-  const { data: existing } = await opts.admin.from('billing_invoices').select('*')
-    .eq('organization_id', opts.organization.id).eq('document_type', 'proforma').eq('status', 'unpaid')
-    .eq('plan', opts.plan).eq('quantity', seats).order('issued_at', { ascending: false }).limit(1).maybeSingle();
-  if (existing) {
-    let emailResult: any = null;
-    if (opts.recipientEmail) {
-      emailResult = await sendBillingInvoiceEmail({
-        to: opts.recipientEmail, organizationName: opts.organization.name, invoiceNumber: existing.invoice_number,
-        plan: opts.plan, totalAmount: Number(existing.total_amount || total), billingUrl: opts.appBillingUrl || '', pdf: buildBillingPdf(existing), documentType: 'proforma'
-      });
-      if (emailResult?.sent) await opts.admin.from('billing_invoices').update({ emailed_at: new Date().toISOString(), recipient_email: opts.recipientEmail }).eq('id', existing.id);
+  // Automatski mesecni ciklus je idempotentan: jedan predracun po organizaciji i datumu ciklusa.
+  if (cycleOn) {
+    const {data:cycleExisting} = await opts.admin.from('billing_invoices').select('*')
+      .eq('organization_id', opts.organization.id).eq('document_type','proforma').eq('billing_cycle_on', cycleOn)
+      .limit(1).maybeSingle();
+    if (cycleExisting) {
+      const emailResult = await emailExistingProforma(opts, cycleExisting, total);
+      return {invoice:cycleExisting,email:emailResult,reused:true};
     }
-    return { invoice: existing, email: emailResult, reused: true };
-  }
+  } else {
+    // Rucno kreiranje ne pravi duplikat otvorenog predracuna za isti paket/seat.
+    const { data: existing } = await opts.admin.from('billing_invoices').select('*')
+      .eq('organization_id', opts.organization.id).eq('document_type', 'proforma').eq('status', 'unpaid')
+      .eq('plan', opts.plan).eq('quantity', seats).order('issued_at', { ascending: false }).limit(1).maybeSingle();
+    if (existing) {
+      const emailResult = await emailExistingProforma(opts, existing, total);
+      return { invoice: existing, email: emailResult, reused: true };
+    }
 
-  // Stari neplaćeni predračuni se zatvaraju kada korisnik izabere novi paket.
-  await opts.admin.from('billing_invoices').update({ status: 'cancelled' })
-    .eq('organization_id', opts.organization.id).eq('document_type', 'proforma').eq('status', 'unpaid');
+    // Kod rucne promene paketa zatvaramo stare otvorene predracune.
+    await opts.admin.from('billing_invoices').update({ status: 'cancelled' })
+      .eq('organization_id', opts.organization.id).eq('document_type', 'proforma').eq('status', 'unpaid');
+  }
 
   const invoiceNumber = await nextDocumentNumber(opts.admin, 'proforma');
   const paymentReference = paymentReferenceFromDocumentNumber(invoiceNumber);
@@ -88,10 +151,12 @@ export async function createPlanProforma(opts: { admin: any; organization: any; 
     issuer_snapshot: issuer,
     provider: 'bank_transfer',
     payment_reference: paymentReference,
-    note: 'Predračun za mesečnu FiscalBox pretplatu. Finalni račun se izdaje nakon verifikovane uplate.'
+    billing_cycle_on: cycleOn,
+    note: opts.recurring
+      ? `Automatski mesečni predračun za FiscalBox pretplatu${cycleOn?` (ciklus ${cycleOn})`:''}. Finalni račun se izdaje nakon verifikovane uplate.`
+      : 'Predračun za mesečnu FiscalBox pretplatu. Finalni račun se izdaje nakon verifikovane uplate.'
   };
 
-  // Tehnička NBS provera IPS stringa je best-effort i ne blokira kreiranje dokumenta ako je servis privremeno nedostupan.
   try {
     const ips = buildIpsPaymentString({ bankAccount: issuer.bank_account, payeeName: issuer.company_name, amount: total, paymentCode: issuer.payment_code || '221', purpose: `FiscalBox ${invoiceNumber}`, paymentReference });
     const validation = await validateIpsTextWithNbs(ips);
@@ -101,7 +166,15 @@ export async function createPlanProforma(opts: { admin: any; organization: any; 
   }
 
   const { data: invoice, error } = await opts.admin.from('billing_invoices').insert(payload).select('*').single();
-  if (error) throw error;
+  if (error) {
+    // Paralelni cron poziv moze udariti u unique cycle index; u tom slucaju vratiti vec kreirani dokument.
+    if (cycleOn && String(error.code||'')==='23505') {
+      const {data:existing} = await opts.admin.from('billing_invoices').select('*')
+        .eq('organization_id', opts.organization.id).eq('document_type','proforma').eq('billing_cycle_on',cycleOn).limit(1).maybeSingle();
+      if (existing) return {invoice:existing,email:null,reused:true};
+    }
+    throw error;
+  }
 
   let emailResult: any = null;
   if (opts.recipientEmail) {
@@ -113,6 +186,25 @@ export async function createPlanProforma(opts: { admin: any; organization: any; 
     if (emailResult?.sent) await opts.admin.from('billing_invoices').update({ emailed_at: new Date().toISOString() }).eq('id', invoice.id);
   }
   return { invoice, email: emailResult, reused: false };
+}
+
+async function updateRecurringScheduleAfterPayment(admin:any, invoice:any, paidAt:string) {
+  if (!invoice?.organization_id) return;
+  const {data:sub} = await admin.from('subscriptions').select('first_paid_at,billing_anchor_day,next_proforma_at,auto_proforma_enabled,activated_at,last_payment_at').eq('organization_id',invoice.organization_id).maybeSingle();
+  if (!sub) return;
+  const firstPaidAt = sub.first_paid_at || paidAt;
+  const anchorDay = Number(sub.billing_anchor_day || new Date(firstPaidAt).getUTCDate() || 1);
+  const computedNext = nextMonthlyOccurrence(anchorDay, paidAt);
+  const existingNext = sub.next_proforma_at ? String(sub.next_proforma_at).slice(0,10) : null;
+  const nextProformaAt = existingNext && existingNext > computedNext ? existingNext : computedNext;
+  const payload:any = {
+    first_paid_at:firstPaidAt,
+    billing_anchor_day:anchorDay,
+    next_proforma_at:nextProformaAt
+  };
+  // Ako MASTER nije eksplicitno ugasio automatiku, prva uplata je aktivira.
+  if (sub.auto_proforma_enabled !== false) payload.auto_proforma_enabled = true;
+  await admin.from('subscriptions').update(payload).eq('organization_id',invoice.organization_id);
 }
 
 export async function settleProforma(opts: {
@@ -138,6 +230,10 @@ export async function settleProforma(opts: {
 
   const invoice = data.invoice;
   const alreadySettled = Boolean(data.alreadySettled);
+  if (!alreadySettled) {
+    await updateRecurringScheduleAfterPayment(opts.admin, invoice, paidAt).catch((e:any)=>console.error('[FiscalBox billing] recurring schedule update failed',e?.message||e));
+  }
+
   let email: any = null;
   if (invoice.recipient_email && (!alreadySettled || !invoice.emailed_at)) {
     email = await sendBillingInvoiceEmail({

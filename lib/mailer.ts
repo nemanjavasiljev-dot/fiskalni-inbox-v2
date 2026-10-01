@@ -115,10 +115,11 @@ async function sendEmail(opts:{to:string;subject:string;html:string;attachments?
 
 function escapeHtml(value:string){return value.replace(/[&<>'"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]||c));}
 
-export async function sendCustomMasterEmail(opts:{to:string;subject:string;message:string}){
+export async function sendCustomMasterEmail(opts:{to:string;subject:string;message:string;attachments?:Array<{filename:string;content:string}>;marketing?:boolean}){
   return sendEmail({
     to:opts.to,
     subject:opts.subject,
-    html:`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#17221E"><p>${escapeHtml(opts.message).replace(/\n/g,'<br/>')}</p><p style="font-size:12px;color:#68736e">Poruka poslata iz FiscalBox administracije.</p></div>`
+    html:`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#17221E;max-width:680px;margin:auto"><p>${escapeHtml(opts.message).replace(/\n/g,'<br/>')}</p><p style="font-size:12px;color:#68736e">${opts.marketing?'Marketing poruka poslata putem FiscalBox-a.':'Poruka poslata iz FiscalBox administracije.'}</p></div>`,
+    attachments:opts.attachments
   });
 }

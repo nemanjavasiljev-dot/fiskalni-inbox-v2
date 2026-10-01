@@ -14,6 +14,7 @@ export async function GET(request:Request){
   const since=sinceRaw&&Number.isFinite(new Date(sinceRaw).getTime())?new Date(sinceRaw).toISOString():fallback;
   const {data,error}=await supabase.from("user_notifications")
     .select("id,event_key,tag,notification_type,title,body,url,organization_id,created_at")
+    .is("deleted_at",null)
     .gt("created_at",since)
     .order("created_at",{ascending:true})
     .limit(25);

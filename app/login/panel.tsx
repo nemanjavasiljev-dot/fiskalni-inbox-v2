@@ -88,7 +88,7 @@ export default function LoginPanel() {
         <div style={{textAlign:"right",marginTop:10,fontSize:12}}><a href="/forgot-password"><b>Zaboravljena lozinka?</b></a></div>
       </form>
       <div className="divider">novi korisnik</div>
-      <a className="btn btn-accent" style={{width:"100%"}} href="/register">Registruj se</a>
+      <a className="btn btn-accent auth-register-submit" style={{width:"100%"}} href="/register">Registruj se</a>
       <p className="muted" style={{fontSize:12,marginTop:14,textAlign:'center'}}>Prijava je povezana sa vašim produkcionim FiscalBox nalogom.</p>
       {showInstallGate&&<div className="mobile-install-gate"><div className="mobile-install-card"><span className="pill">MOBILNA APLIKACIJA</span><h2>Instalirajte FiscalBox na telefon</h2><p>Registracija je završena. Za brži rad, kameru i PUSH obaveštenja preporučujemo da FiscalBox sada dodate kao aplikaciju na telefon.</p><InstallAppButton/><div className="mobile-install-actions"><button type="button" className="btn" onClick={()=>setShowInstallGate(false)}>Nastavi bez instalacije</button></div><small>Pregledač ne dozvoljava da sajt potpuno sam instalira aplikaciju. FiscalBox zato odmah otvara najdirektniji dostupan postupak instalacije za vaš telefon.</small></div></div>}
     </>

@@ -67,7 +67,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
   }
 
   return <div className="register-flow">
-    <div className="register-progress">{[1,2,3,4,5].map(n=><span key={n} className={n<=step?"active":""}>{n}</span>)}</div>
+    <div className="register-progress">{(role==="accountant"?[1,2,3,4]:[1,2,3,4,5]).map(n=><span key={n} className={n<=step?"active":""}>{n}</span>)}</div>
 
     {step===1&&<section className="register-step">
       <h2>Ko otvara nalog?</h2><p className="muted">Izaberite tip naloga.</p>
@@ -99,7 +99,15 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
       <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={()=>validateAccount()&&next()}>Nastavi</button></div>
     </section>}
 
-    {step===4&&<section className="register-step">
+    {step===4&&role==="accountant"&&<section className="register-step">
+      <h2>Knjigovođa koristi FiscalBox bez pretplate</h2>
+      <p className="muted">Knjigovodstvena agencija ne plaća FiscalBox pretplatu. Pretplata se bira i obračunava isključivo za klijentske firme koje povežete ili registrujete.</p>
+      <div className="company-confirm"><Check size={17}/><div><b>Nema mesečne pretplate za knjigovođu</b><span>Nakon registracije možete dodavati klijente i za svakog izabrati BASIC ili PREMIUM paket.</span></div></div>
+      {error&&<div className="error">{error}</div>}
+      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={submit} disabled={busy}>{busy?"Kreiram nalog…":"Registruj knjigovođu"}</button></div>
+    </section>}
+
+    {step===4&&role==="company"&&<section className="register-step">
       <h2>Izaberite paket i način početka</h2>
       <div className="register-plans register-plans-production">
         <button className={`register-plan ${plan==="basic"?"selected":""}`} onClick={()=>setPlan("basic")}><b>Basic</b><strong>1.250 RSD + PDV</strong><small>po korisniku / mesečno</small><span>QR, fajlovi, arhiva, knjigovođa</span></button>
@@ -109,7 +117,7 @@ export default function RegisterForm({initialPlan="basic",initialTrial=true}:{in
         <button className={`trial-choice ${trial?"selected":""}`} onClick={()=>setTrial(true)}><span className="trial-icon">10</span><div><b>Probaj 10 dana besplatno</b><small>Bez kartice. Sve funkcije iz izabranog paketa.</small></div>{trial&&<Check/>}</button>
         <button className={`trial-choice ${!trial?"selected":""}`} onClick={()=>setTrial(false)}><CreditCard/><div><b>Aktiviraj pretplatu odmah</b><small>Posle registracije otvara se sigurno online plaćanje.</small></div>{!trial&&<Check/>}</button>
       </div>
-      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={()=>role==="company"?next():submit()} disabled={busy}>{role==="company"?"Nastavi":busy?"Kreiram nalog…":trial?"Pokreni 10 dana besplatno":"Registruj i pređi na plaćanje"}</button></div>
+      <div className="register-actions"><button className="btn" onClick={back}>Nazad</button><button className="btn btn-primary" onClick={next} disabled={busy}>Nastavi</button></div>
     </section>}
 
     {step===5&&role==="company"&&<section className="register-step">

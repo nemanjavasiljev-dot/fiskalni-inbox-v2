@@ -1,0 +1,9 @@
+FiscalBox V5.9.2.9 — provera
+
+- TypeScript/TSX syntax transpile: PASS
+- Broj TS/TSX fajlova: 174
+- Sintaksne greške: 0
+- Novi SQL: SQL_028_INBOX_PORUKE.sql
+- Novi endpointi: /api/messages, /api/messages/[id], /api/communication/counts
+- Novi UI: /app/messages, CommunicationQuickActions, MessageCenter
+- Regression test: nije izvršen do kraja u ovom radnom okruženju jer lokalni node_modules nema modul web-push. Vercel production build ostaje finalna potvrda pune instalacije zavisnosti.

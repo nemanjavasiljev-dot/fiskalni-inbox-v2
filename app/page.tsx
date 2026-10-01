@@ -19,7 +19,6 @@ export default function Landing() {
           <div className="actions landing-actions">
             <Link className="btn landing-login" href="/login">Prijava</Link>
             <Link className="btn btn-primary landing-register" href="/register">Registruj se</Link>
-            <Link className="btn btn-brand-green landing-demo" href="/register?plan=basic&trial=1">Probaj 10 dana</Link>
           </div>
         </div>
       </header>
@@ -32,11 +31,9 @@ export default function Landing() {
               <h1>Manje papira.<br/><span className="hero-accent">Više kontrole.</span></h1>
               <p className="hero-brand-tagline">Skeniraj. Sačuvaj. Pošalji knjigovođi.</p>
               <p className="muted hero-brand-copy">FiscalBox povezuje firmu i knjigovođu u jednom sigurnom digitalnom prostoru. Fiskalni računi, dokumenti, pretraga, arhiva i slanje knjigovođi — bez fascikli i mesečnog traženja papira.</p>
-              <div className="hero-actions">
+              <div className="hero-actions hero-actions-clean">
                 <Link className="btn btn-primary" href="/register">Registruj se</Link>
-                <Link className="btn btn-brand-green" href="/register?plan=basic&trial=1">Probaj 10 dana</Link>
-                <a className="btn" href="#cene">Pogledaj pretplate</a>
-                <InstallAppButton compact/>
+                <Link className="btn" href="/login">Prijava</Link>
               </div>
             </div>
 
@@ -55,6 +52,19 @@ export default function Landing() {
                 <div className="receipt-line"><span>Gigatron</span><b>32.990 RSD</b></div>
                 <div className="receipt-line"><span>Telekom Srbija</span><b>14.280 RSD</b></div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="trial-promo-section" aria-label="Besplatan probni period">
+          <div className="container">
+            <div className="trial-promo-card">
+              <div className="trial-promo-badge">10 DANA BESPLATNO</div>
+              <div className="trial-promo-copy">
+                <strong>Prvih 10 dana koristite FiscalBox besplatno.</strong>
+                <span>Otvorite nalog i isprobajte funkcije izabranog paketa bez obaveze. Pretplatu birate tek nakon probnog perioda.</span>
+              </div>
+              <div className="trial-promo-note">Bez demo naloga · pravi podaci · puni pristup funkcijama</div>
             </div>
           </div>
         </section>
@@ -105,12 +115,12 @@ export default function Landing() {
               <div className="card price">
                 <span className="tag">10 DANA BESPLATNO</span><h3>Basic</h3><div className="price-number">1.250 RSD + PDV</div><div className="muted">po korisniku / mesečno nakon trial-a</div>
                 <ul><li>QR unos računa</li><li>Fajlovi i arhiva</li><li>Kategorije i pretraga</li><li>CSV / PDF / štampa</li><li>Povezivanje knjigovođe</li></ul>
-                <div className="pricing-actions"><Link href="/register?plan=basic&trial=1" className="btn btn-primary">Probaj 10 dana</Link><Link href="/register?plan=basic&trial=0" className="btn">Pretplati se</Link></div>
+                <div className="pricing-actions"><Link href="/register?plan=basic&trial=1" className="btn btn-primary">Registruj se</Link><Link href="/register?plan=basic&trial=0" className="btn">Pretplati se</Link></div>
               </div>
               <div className="card price pop">
                 <span className="tag">PREPORUČENO · 10 DANA BESPLATNO</span><h3>Premium</h3><div className="price-number">1.790 RSD + PDV</div><div className="muted">po korisniku / mesečno nakon trial-a</div>
                 <ul><li>Sve iz Basic paketa</li><li>Napredni mesečni pregledi</li><li>Print/PDF paketi</li><li>Napredne KNJIGO funkcije</li><li>Prioritetne funkcije i podrška</li></ul>
-                <div className="pricing-actions"><Link href="/register?plan=premium&trial=1" className="btn btn-brand-green">Probaj 10 dana</Link><Link href="/register?plan=premium&trial=0" className="btn">Pretplati se</Link></div>
+                <div className="pricing-actions"><Link href="/register?plan=premium&trial=1" className="btn btn-brand-green">Registruj se</Link><Link href="/register?plan=premium&trial=0" className="btn">Pretplati se</Link></div>
               </div>
             </div>
           </div>
@@ -127,8 +137,8 @@ export default function Landing() {
 
         <div className="container">
           <div className="cta">
-            <div><h2>Probaj FiscalBox 10 dana.</h2><p style={{color:"#cde1d8"}}>Pravi nalog, pravi podaci i aktivne funkcije. Bez demo režima.</p></div>
-            <div className="actions"><Link className="btn btn-primary" href="/register?plan=basic&trial=1">Probaj 10 dana</Link><Link className="btn btn-brand-green" href="/register">Registruj se</Link><Link className="btn" href="/login">Prijava</Link></div>
+            <div><h2>Prvih 10 dana je besplatno.</h2><p style={{color:"#cde1d8"}}>Registrujte se, koristite FiscalBox sa pravim podacima i izaberite pretplatu kada završite probni period.</p></div>
+            <div className="actions"><Link className="btn btn-brand-green" href="/register">Registruj se</Link><Link className="btn" href="/login">Prijava</Link></div>
           </div>
         </div>
       </main>

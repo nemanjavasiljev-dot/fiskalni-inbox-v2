@@ -87,6 +87,10 @@ export function analyzeVatDeductibility(receipt:any, organization:any):VatAiAnal
   const matched=new Set<string>();
   const risks=new Set<string>();
 
+  if(receipt?.bookkeeping_eligible===false || !buyerPib){
+    return {recommendation:"ne",confidence:100,reason:"Na fiskalnom računu nije evidentiran ID/PIB kupca. FiscalBox ga zato ne smatra podobnim za automatsku knjigovodstvenu ili PDV obradu; može ostati sačuvan samo uz upozorenje i ručnu proveru.",basis:{activityCode,activityName,matchedTerms:[],riskTerms:[],receiptTerms:receiptTerms.slice(0,20),buyerPib,organizationPib:orgPib,verified}};
+  }
+
   if(totalTax<=0){
     return {recommendation:"ne",confidence:100,reason:"Na računu nije evidentiran iznos PDV-a za odbitak.",basis:{activityCode,activityName,matchedTerms:[],riskTerms:[],receiptTerms:receiptTerms.slice(0,20),buyerPib,organizationPib:orgPib,verified}};
   }

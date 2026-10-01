@@ -1,0 +1,69 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="FiscalBox KNJIGO"
+    Manufacturer="FiscalBox"
+    Version="1.0.0"
+    UpgradeCode="A8A7323A-397C-4C99-97E6-C4E7CA81C514"
+    Scope="perMachine"
+    InstallerVersion="500">
+
+    <SummaryInformation Description="FiscalBox KNJIGO Windows aplikacija" Manufacturer="FiscalBox" />
+    <MajorUpgrade DowngradeErrorMessage="Novija verzija FiscalBox KNJIGO je već instalirana." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPPRODUCTICON" Value="FiscalBoxIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://fiscalbox.rs" />
+    <Property Id="ARPHELPLINK" Value="https://fiscalbox.rs" />
+    <Icon Id="FiscalBoxIcon" SourceFile="payload\FiscalBox.ico" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="FiscalBox KNJIGO">
+        <Component Id="MainFiles" Guid="0F1D4903-08CE-473E-BD1A-67F65FA105A7">
+          <File Id="LauncherVbs" Source="payload\LaunchFiscalBox.vbs" KeyPath="yes" />
+          <File Id="InstalledIcon" Source="payload\FiscalBox.ico" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcutComponent" Guid="B331216A-6A14-4C07-B9BC-9B86A330861D">
+        <Shortcut
+          Id="DesktopShortcut"
+          Name="FiscalBox KNJIGO"
+          Description="FiscalBox za knjigovođe"
+          Target="[SystemFolder]wscript.exe"
+          Arguments="&quot;[INSTALLFOLDER]LaunchFiscalBox.vbs&quot;"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="FiscalBoxIcon" />
+        <RegistryValue Root="HKLM" Key="Software\FiscalBox\KNJIGO" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="FiscalBox">
+        <Component Id="StartMenuShortcutComponent" Guid="2817C337-020D-4778-9852-C17C93A02A17">
+          <Shortcut
+            Id="StartMenuShortcut"
+            Name="FiscalBox KNJIGO"
+            Description="FiscalBox za knjigovođe"
+            Target="[SystemFolder]wscript.exe"
+            Arguments="&quot;[INSTALLFOLDER]LaunchFiscalBox.vbs&quot;"
+            WorkingDirectory="INSTALLFOLDER"
+            Icon="FiscalBoxIcon" />
+          <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+          <RegistryValue Root="HKLM" Key="Software\FiscalBox\KNJIGO" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="FiscalBox KNJIGO" Level="1">
+      <ComponentRef Id="MainFiles" />
+      <ComponentRef Id="DesktopShortcutComponent" />
+      <ComponentRef Id="StartMenuShortcutComponent" />
+    </Feature>
+
+    <WixVariable Id="WixUILicenseRtf" Value="license.rtf" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+  </Package>
+</Wix>

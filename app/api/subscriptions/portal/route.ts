@@ -11,6 +11,7 @@ export async function GET(request:Request){
   const admin=createAdminClient();
   const {data:org}=await admin.from('organizations').select('id,owner_user_id,organization_type').eq('id',organizationId).maybeSingle();
   if(!org) return NextResponse.json({error:'Organizacija nije pronađena.'},{status:404});
+  if(org.organization_type==='accounting') return NextResponse.redirect(new URL('/app',request.url));
   const {data:member}=await admin.from('organization_members').select('role,accounting_access_role').eq('organization_id',organizationId).eq('user_id',user.id).maybeSingle();
   const allowed=org.owner_user_id===user.id || (org.organization_type==='accounting'&&member?.role==='employee'&&member?.accounting_access_role==='admin');
   if(!allowed) return NextResponse.json({error:'Nemate pravo upravljanja pretplatom.'},{status:403});

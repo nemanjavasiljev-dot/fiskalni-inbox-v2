@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Camera, Check, File as FileIcon, FileText, FolderOpen, Pencil, Search, Send, Upload, X } from "lucide-react";
+import { Bell, Camera, Check, CreditCard, Database, File as FileIcon, FileText, FolderOpen, LogOut, Mail, Pencil, Search, Send, Settings, Upload, X } from "lucide-react";
 import QrScanner from "@/components/QrScanner";
 import UserBottomNav from "@/components/UserBottomNav";
 import DocumentScanner from "@/components/DocumentScanner";
@@ -46,6 +47,15 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
   const uploadInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const isAccountant = activeOrg.role === "accountant";
+
+  useEffect(()=>{
+    if(!moreOpen) return;
+    const previous=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    const onKey=(event:KeyboardEvent)=>{if(event.key==="Escape")setMoreOpen(false)};
+    window.addEventListener("keydown",onKey);
+    return()=>{document.body.style.overflow=previous;window.removeEventListener("keydown",onKey)};
+  },[moreOpen]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -136,7 +146,7 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
       <div className="app-head files-head"><div><span className="pill">{isAccountant ? "DOKUMENTI KLIJENTA" : "FAJLOVI"}</span><h1 className="company-name-heading">{activeOrg.name}</h1><p className="muted">{isAccountant ? "Dokumenti koje vam je klijent poslao." : "Skenirajte, fotografišite ili dodajte dokument i prosledite ga knjigovođi."}</p></div><div className="actions">{organizations.length>1 && <select className="select" value={activeOrg.organization_id} onChange={e=>router.push(`/app/files?org=${e.target.value}`)}>{organizations.map((o:any)=><option key={o.organization_id} value={o.organization_id}>{o.name}</option>)}</select>}</div></div>
 
       {!isAccountant && <div className="grid file-action-grid">
-        <button className="card file-action" onClick={()=>setScanDocument(true)} disabled={busy}><FileText/><div><b>Skeniraj dokument</b><span>Otvori kameru i snimi dokument</span></div></button>
+        <button className="card file-action" onClick={()=>setScanDocument(true)} disabled={busy}><FileText/><div><b>Skeniraj dokument</b><span>Automatski sken: ivice, krop i perspektiva</span></div></button>
         <button className="card file-action" onClick={()=>photoInput.current?.click()} disabled={busy}><Camera/><div><b>Fotografiši</b><span>Dodaj fotografiju računa ili dokumenta</span></div></button>
         <button className="card file-action" onClick={()=>uploadInput.current?.click()} disabled={busy}><Upload/><div><b>Dodaj fajl</b><span>PDF, Word, Excel, XML, CSV, slike…</span></div></button>
         <input ref={photoInput} hidden type="file" accept="image/*" capture="environment" onChange={e=>prepareUpload(e.target.files,"camera")}/>
@@ -196,8 +206,8 @@ export default function FilesWorkspace({ profile, organizations, activeOrg, init
     </div></div>}
 
     {!isAccountant && scanDocument && <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setScanDocument(false)}}><div className="modal document-scanner-modal"><DocumentScanner onClose={()=>setScanDocument(false)} onCapture={async(file)=>{setScanDocument(false);await uploadBatch([file],"scan")}}/></div></div>}
-    {!isAccountant && scanQr && <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setScanQr(false)}}><div className="modal qr-modal"><div className="modal-head"><div><span className="pill">NOVI RAČUN</span><h2>QR skener</h2></div><button className="btn" onClick={()=>setScanQr(false)}>Zatvori</button></div><QrScanner organizationId={activeOrg.organization_id} onDone={()=>{setScanQr(false);router.refresh()}}/></div></div>}
-    {!isAccountant && moreOpen && <div className="bottom-sheet-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}><div className="bottom-sheet"><div className="bottom-sheet-handle"/><div className="bottom-sheet-head"><div><span className="pill">VIŠE</span><h3>Opcije naloga</h3></div><button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button></div><div className="more-list"><div className="more-info"><span>Firma</span><b>{activeOrg.name}</b></div><div className="more-info"><span>Paket</span><b>{String(activeOrg.plan||"basic").toUpperCase()}</b></div><button className="more-action" onClick={()=>router.push(`/app?org=${activeOrg.organization_id}`)}>Fiskalni računi <b>→</b></button><button className="more-action" onClick={()=>router.push("/app/billing")}>Moji računi <b>→</b></button></div></div></div>}
+    {!isAccountant && scanQr && typeof document!=="undefined" && createPortal(<div className="qr-fullscreen-backdrop"><section className="qr-fullscreen-shell" role="dialog" aria-modal="true" aria-label="QR skener fiskalnog računa"><header className="qr-fullscreen-head"><div><span className="pill">NOVI RAČUN</span><h2>QR skener</h2><small>Usmerite QR u okvir. Dodirnite Auto-zoom kada kadar bude najbolji.</small></div><button className="btn qr-close-btn" onClick={()=>setScanQr(false)}>Zatvori</button></header><div className="qr-fullscreen-body"><QrScanner organizationId={activeOrg.organization_id} onDone={()=>{setScanQr(false);router.refresh()}}/></div></section></div>,document.body)}
+    {!isAccountant && moreOpen && typeof document!=="undefined" && createPortal(<div className="bottom-sheet-backdrop user-more-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setMoreOpen(false)}}><div className="bottom-sheet user-more-sheet"><div className="bottom-sheet-handle"/><div className="bottom-sheet-head"><div><span className="pill">VIŠE</span><h3>Kompletan meni</h3></div><button className="btn" onClick={()=>setMoreOpen(false)}>Zatvori</button></div><div className="more-list"><div className="user-more-company-card"><span className="user-more-company-avatar">{String(activeOrg.name||"F").slice(0,1).toUpperCase()}</span><span className="user-more-company-copy"><b>{activeOrg.name}</b><span>{activeOrg.pib?`PIB ${activeOrg.pib}`:"FiscalBox firma"}</span></span><span className="user-more-company-plan">{String(activeOrg.plan||"basic").toUpperCase()}</span></div><div className="more-menu-grid"><button className="more-grid-item" onClick={()=>router.push(`/app?org=${activeOrg.organization_id}`)}><FileText size={21}/><b>Fiskalni računi</b><span>Pregled svih računa</span></button><button className="more-grid-item" onClick={()=>router.push(`/app/files?org=${activeOrg.organization_id}`)}><FolderOpen size={21}/><b>Fajlovi</b><span>Dokumenti i arhiva</span></button><a className="more-grid-item" href="/app/messages"><Mail size={21}/><b>Poruke</b><span>Primljene i poslate</span></a><a className="more-grid-item" href="/app/notifications"><Bell size={21}/><b>Notifikacije</b><span>Obaveštenja i reakcije</span></a><a className="more-grid-item" href={`/app/subscription?organization_id=${activeOrg.organization_id}`}><CreditCard size={21}/><b>Pretplata</b><span>Paket i nadogradnja</span></a><button className="more-grid-item" onClick={()=>router.push("/app/billing")}><FileText size={21}/><b>Moji računi</b><span>Računi i predračuni</span></button><a className="more-grid-item" href={`/api/export/csv?organization_id=${activeOrg.organization_id}`}><Database size={21}/><b>CSV izvoz</b><span>Izvezi bazu računa</span></a><a className="more-grid-item" href={`/app/settings?section=company&org=${activeOrg.organization_id}`}><Settings size={21}/><b>Podešavanja</b><span>Firma i korisnik</span></a><form method="post" action="/api/auth/logout" className="more-grid-form"><button className="more-grid-item danger" type="submit"><LogOut size={21}/><b>Odjava</b><span>Završi sesiju</span></button></form></div></div></div></div>,document.body)}
     {!isAccountant && <UserBottomNav active="files" onHome={()=>router.push(`/app?org=${activeOrg.organization_id}`)} onSearch={()=>searchInput.current?.focus()} onScan={()=>setScanQr(true)} onFiles={()=>{}} onMore={()=>setMoreOpen(true)}/>} 
   </div>;
 }

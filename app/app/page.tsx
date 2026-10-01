@@ -3,12 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Dashboard from "./ui";
 import SubscriptionRequired from "@/components/SubscriptionRequired";
+import { receiptTotalTax } from "@/lib/fiscal";
 
 function normEmail(v:any){return String(v||'').trim().toLowerCase();}
 function normPhone(v:any){let d=String(v||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.startsWith('0'))d=`381${d.slice(1)}`;if(d&&!d.startsWith('381')&&d.length<=10)d=`381${d}`;return d?`+${d}`:'';}
 async function loadIncomingConnections(admin:any,targetKind:'company'|'accounting',org:any,userEmail:string){
   if(!org)return [];
-  if(org.role && !(org.role==='owner'||org.accounting_access_role==='admin'))return [];
+  if(org.role && !(org.role==='owner'||org.accounting_access_role==='admin'||org.organization_access_role==='admin'))return [];
   const orgId=String(org.organization_id||org.id||'');
   const base=()=>admin.from('connection_requests').select('*').eq('target_kind',targetKind).eq('status','pending').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(100);
   const [direct,byEmail]=await Promise.all([
@@ -33,11 +34,11 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   const { data:memberships } = await supabase
     .from("organization_members")
-    .select("id,organization_id,role,accounting_access_role,organizations(id,company_id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status,organization_type,trial_ends_at,accountant_pib_pending,accountant_contact_email,logo_path,receipt_send_schedule,last_auto_receipt_send_at,owner_user_id,contact_email,contact_phone,service_block_reason,service_blocked_at)")
+    .select("id,organization_id,role,accounting_access_role,organization_access_role,organizations(id,company_id,name,pib,registration_number,legal_form,address,municipality,activity_code,activity_name,plan,status,organization_type,trial_ends_at,accountant_pib_pending,accountant_contact_email,logo_path,receipt_send_schedule,last_auto_receipt_send_at,owner_user_id,contact_email,contact_phone,service_block_reason,service_blocked_at)")
     .eq("user_id",user.id);
 
   const params = await searchParams;
-  const rawOrgs = (memberships||[]).map((m:any)=>({organization_id:m.organization_id,role:m.role,accounting_access_role:m.accounting_access_role,...m.organizations}));
+  const rawOrgs = (memberships||[]).map((m:any)=>({organization_id:m.organization_id,role:m.role,accounting_access_role:m.accounting_access_role,organization_access_role:m.organization_access_role,...m.organizations}));
   const membershipOrgIds=rawOrgs.map((o:any)=>o.organization_id);
   const {data:subscriptionRows}=membershipOrgIds.length?await supabase.from("subscriptions").select("*").in("organization_id",membershipOrgIds):{data:[] as any[]};
   const subscriptionMap=new Map((subscriptionRows||[]).map((sub:any)=>[String(sub.organization_id),sub]));
@@ -55,7 +56,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     .eq('requester_user_id',user.id).eq('status','pending').order('created_at',{ascending:false}).limit(10);
   let incomingAccessRequests:any[]=[];
   let incomingAccountantRequests:any[]=[];
-  if(activeOrg?.company_id && activeOrg?.role==='owner'){
+  if(activeOrg?.company_id && (activeOrg?.role==='owner'||activeOrg?.organization_access_role==='admin')){
     const [{data:accessRows},{data:accountantRows}]=await Promise.all([
       supabase.from('company_access_requests').select('id,company_id,organization_id,requester_user_id,requested_role,status,created_at').eq('company_id',activeOrg.company_id).eq('status','pending').neq('requester_user_id',user.id).order('created_at',{ascending:false}),
       supabase.from('accountant_company').select('id,accountant_organization_id,company_id,status,created_at').eq('company_id',activeOrg.company_id).eq('status','pending').order('created_at',{ascending:false})
@@ -87,7 +88,23 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
         supabase.from("accountant_receipt_status").select("*").eq("accountant_user_id",user.id),
         supabase.from("accountant_document_status").select("*").eq("accountant_user_id",user.id)
       ]);
-      accountantOverview = {receipts:allReceipts||[],documents:allDocuments||[],receiptStatuses:receiptStatuses||[],documentStatuses:documentStatuses||[]};
+      let overviewReceipts:any[]=allReceipts||[];
+      const missingTaxIds=overviewReceipts.filter((r:any)=>r.total_tax==null).map((r:any)=>r.id);
+      if(missingTaxIds.length){
+        const rawTaxRows:any[]=[];
+        for(let i=0;i<missingTaxIds.length;i+=100){
+          const {data:chunk}=await supabase.from("receipts").select("id,raw_json").in("id",missingTaxIds.slice(i,i+100));
+          rawTaxRows.push(...(chunk||[]));
+        }
+        const rawMap=new Map(rawTaxRows.map((r:any)=>[String(r.id),r.raw_json]));
+        overviewReceipts=overviewReceipts.map((r:any)=>{
+          const raw=rawMap.get(String(r.id));
+          if(raw===undefined)return r;
+          const totalTax=receiptTotalTax({...r,raw_json:raw});
+          return {...r,total_tax:totalTax};
+        });
+      }
+      accountantOverview = {receipts:overviewReceipts,documents:allDocuments||[],receiptStatuses:receiptStatuses||[],documentStatuses:documentStatuses||[]};
     } else accountantOverview = {receipts:[],documents:[],receiptStatuses:[],documentStatuses:[]};
 
     if(accountingOffice){
@@ -112,9 +129,9 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
     }
   }
 
-  if(profile.global_role!=="master_admin"){
-    const billingOrg=accountantOnly?accountingOffice:activeOrg;
-    if(billingOrg && billingOrg.status!=="paused"){
+  if(profile.global_role!=="master_admin"&&!accountantOnly){
+    const billingOrg=activeOrg;
+    if(billingOrg && billingOrg.organization_type!=="accounting" && billingOrg.status!=="paused"){
       const sub=billingOrg.subscription;
       const now=Date.now();
       const trialOk=sub?.status==="trial" && sub?.trial_ends_at && new Date(sub.trial_ends_at).getTime()>now;
@@ -138,9 +155,9 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
 
   let master:any = null;
   if (profile.global_role === "master_admin") {
-    const [{data:organizations},{data:allMembers},{data:allProfiles},{data:allReceipts},{data:billingInvoices},{data:payouts},{data:rewards},{data:issuerSettings},{data:allSubscriptions},{data:accountantCompanyRelations},{data:bankTransactions}] = await Promise.all([
+    const [{data:organizations},{data:allMembers},{data:allProfiles},{data:allReceipts},{data:billingInvoices},{data:payouts},{data:rewards},{data:issuerSettings},{data:allSubscriptions},{data:accountantCompanyRelations},{data:bankTransactions},{data:marketingCampaigns}] = await Promise.all([
       supabase.from("organizations").select("*").order("created_at",{ascending:false}),
-      supabase.from("organization_members").select("id,organization_id,user_id,role,accounting_access_role"),
+      supabase.from("organization_members").select("id,organization_id,user_id,role,accounting_access_role,organization_access_role"),
       supabase.from("profiles").select("user_id,username,full_name,auth_email,global_role,created_at"),
       supabase.from("receipts").select("id,organization_id,created_at,sent_to_accountant_at"),
       supabase.from("billing_invoices").select("*").order("issued_at",{ascending:false}).limit(3000),
@@ -149,9 +166,10 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
       supabase.from("billing_issuer_settings").select("*").eq("active",true).eq("is_demo",false).limit(1).maybeSingle(),
       supabase.from("subscriptions").select("*"),
       admin.from("accountant_company").select("*").order("created_at",{ascending:false}).limit(3000),
-      admin.from("bank_transactions").select("*").order("booked_at",{ascending:false}).limit(1000)
+      admin.from("bank_transactions").select("*").order("booked_at",{ascending:false}).limit(1000),
+      admin.from("marketing_campaigns").select("*").order("created_at",{ascending:false}).limit(100)
     ]);
-    master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[],billingInvoices:billingInvoices||[],payouts:payouts||[],rewards:rewards||[],issuerSettings:issuerSettings||null,subscriptions:allSubscriptions||[],accountantCompanyRelations:accountantCompanyRelations||[],bankTransactions:bankTransactions||[],bankConfigured:Boolean(process.env.BANK_API_URL&&process.env.BANK_API_TOKEN)};
+    master = {organizations:organizations||[],members:allMembers||[],profiles:allProfiles||[],receipts:allReceipts||[],billingInvoices:billingInvoices||[],payouts:payouts||[],rewards:rewards||[],issuerSettings:issuerSettings||null,subscriptions:allSubscriptions||[],accountantCompanyRelations:accountantCompanyRelations||[],bankTransactions:bankTransactions||[],marketingCampaigns:marketingCampaigns||[],bankConfigured:Boolean(process.env.BANK_API_URL&&process.env.BANK_API_TOKEN)};
   }
 
   return <Dashboard profile={profile} organizations={orgs} activeOrg={activeOrg||null} receipts={receipts} master={master} accountantOverview={accountantOverview} accountantContext={accountantContext} accessContext={accessContext} />;

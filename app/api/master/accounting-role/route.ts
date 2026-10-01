@@ -8,7 +8,7 @@ export async function POST(request:Request){
   if(readError||!m)return NextResponse.json({error:"Član nije pronađen."},{status:404});
   const org:any=(m as any).organizations;if(org?.organization_type!=="accounting")return NextResponse.json({error:"Privilegija važi samo za knjigovodstvenu agenciju."},{status:400});
   if(String(org.owner_user_id)===String(m.user_id)&&access_role!=="admin")return NextResponse.json({error:"Vlasnik agencije mora ostati admin."},{status:400});
-  const {error}=await ctx.admin.from("organization_members").update({accounting_access_role:access_role}).eq("id",membership_id);if(error)return NextResponse.json({error:error.message},{status:400});
+  const {error}=await ctx.admin.from("organization_members").update({accounting_access_role:access_role,organization_access_role:access_role}).eq("id",membership_id);if(error)return NextResponse.json({error:error.message},{status:400});
   await ctx.admin.from("master_action_log").insert({action:"accounting_role_changed",organization_id:m.organization_id,target_user_id:m.user_id,details:{access_role},created_by:ctx.user.id});
   return NextResponse.json({ok:true});
 }
