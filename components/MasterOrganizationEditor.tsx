@@ -16,8 +16,6 @@ export default function MasterOrganizationEditor({organization,subscription,memb
   const [busy,setBusy]=React.useState('');
   const [message,setMessage]=React.useState('');
   const [credentials,setCredentials]=React.useState<any>(null);
-  const [deleteConfirm,setDeleteConfirm]=React.useState('');
-  const [deleteNameConfirm,setDeleteNameConfirm]=React.useState('');
   const [form,setForm]=React.useState<any>({
     name:organization.name||'',pib:organization.pib||'',registration_number:organization.registration_number||'',
     legal_form:organization.legal_form||'',address:organization.address||'',municipality:organization.municipality||'',
@@ -42,21 +40,6 @@ export default function MasterOrganizationEditor({organization,subscription,memb
   async function remove(m:any){if(!confirm('Ukloniti zaposlenog iz ove organizacije? Korisnički nalog neće biti obrisan.'))return;const d=await post(`/api/master/organizations/${organization.id}/staff`,{action:'remove',membership_id:m.id},`remove-${m.id}`);if(d)setTimeout(()=>location.reload(),500);}
   function genPassword(){const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';let p='Fb!';for(let i=0;i<12;i++)p+=alphabet[Math.floor(Math.random()*alphabet.length)];setStaff(v=>({...v,password:p}));}
 
-  async function deleteOrganization(){
-    if(deleteConfirm.trim().toUpperCase()!=='OBRISI'||deleteNameConfirm.trim()!==String(organization.name||'').trim()){
-      setMessage('Za trajno brisanje upišite OBRISI i tačan naziv organizacije.');
-      return;
-    }
-    const label=accounting?'knjigovođu':'firmu';
-    if(!confirm(`TRAJNO obrisati ${label} "${organization.name}"?\n\nBrišu se podaci organizacije, fiskalni računi, dokumenti, pretplata, veze i korisnički nalozi koji ne pripadaju drugoj organizaciji. Ova akcija se ne može poništiti.`))return;
-    setBusy('delete-org');setMessage('');
-    try{
-      const r=await fetch(`/api/master/organizations/${organization.id}`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'OBRISI',organization_name:organization.name})});
-      const d=await r.json();if(!r.ok)throw new Error(d.error||'Brisanje nije uspelo.');
-      alert((d.message||'Organizacija je obrisana.')+(d.storage_warning?`\n\nUpozorenje: baza je obrisana, ali deo storage fajlova zahteva ručno čišćenje: ${d.storage_warning}`:''));
-      onClose();location.reload();
-    }catch(e:any){setMessage(e.message||'Brisanje nije uspelo.');}finally{setBusy('');}
-  }
 
   return <div className="master-editor-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)onClose()}}>
     <div className="master-editor-modal">
@@ -78,12 +61,6 @@ export default function MasterOrganizationEditor({organization,subscription,memb
           {accounting&&<div className="master46-warning"><b>Knjigovođa je bez pretplate.</b> Ovde se uređuju podaci agencije i zaposleni.</div>}
           <button className="btn btn-primary" disabled={!!busy} onClick={save}><Save size={15}/> {busy==='save'?'Čuvam…':'Sačuvaj podatke'}</button>
 
-          <div className="master-danger-zone">
-            <div><span className="pill danger">OPASNA ZONA</span><h3>Trajno obriši {accounting?'knjigovođu':'firmu'}</h3><p className="muted">Ovo briše organizaciju i njene fiskalne račune, dokumente, pretplatu, veze sa knjigovođom/klijentima i storage fajlove. Korisnički nalozi koji nisu član druge organizacije takođe se brišu. Deljeni korisnici ostaju sačuvani.</p></div>
-            <div className="field"><label>Upišite tačan naziv organizacije</label><input className="input" value={deleteNameConfirm} onChange={e=>setDeleteNameConfirm(e.target.value)} placeholder={organization.name}/></div>
-            <div className="field"><label>Za potvrdu upišite OBRISI</label><input className="input" value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="OBRISI"/></div>
-            <button className="btn danger-outline" disabled={!!busy||deleteConfirm.trim().toUpperCase()!=='OBRISI'||deleteNameConfirm.trim()!==String(organization.name||'').trim()} onClick={deleteOrganization}><Trash2 size={15}/> {busy==='delete-org'?'Brišem…':accounting?'Trajno obriši knjigovođu':'Trajno obriši firmu'}</button>
-          </div>
         </section>
 
         <section className="card master46-panel">

@@ -61,11 +61,13 @@ export async function DELETE(request:Request,{params}:{params:Promise<{id:string
   const {data:org,error:orgError}=await ctx.admin.from('organizations').select('*').eq('id',id).maybeSingle();
   if(orgError||!org)return NextResponse.json({error:'Organizacija nije pronađena.'},{status:404});
 
-  if(String(body.confirm||'').trim().toUpperCase()!=='OBRISI'){
-    return NextResponse.json({error:'Za trajno brisanje upišite OBRISI.'},{status:400});
+  if(body.confirm!==true){
+    return NextResponse.json({error:'Brisanje nije potvrđeno.'},{status:400});
   }
-  if(String(body.organization_name||'').trim()!==String(org.name||'').trim()){
-    return NextResponse.json({error:'Potvrda naziva organizacije nije ispravna.'},{status:400});
+  const expectedDeletePin=String(process.env.MASTER_DELETE_PIN||'5203').trim();
+  const suppliedDeletePin=String(body.pin||'').trim();
+  if(!suppliedDeletePin||suppliedDeletePin!==expectedDeletePin){
+    return NextResponse.json({error:'Pogrešan SUPER ADMIN PIN. Brisanje nije izvršeno.'},{status:403});
   }
   if(String(org.owner_user_id)===String(ctx.user.id)){
     return NextResponse.json({error:'SUPER ADMIN ne može obrisati sopstveni master nalog kroz brisanje organizacije.'},{status:400});
