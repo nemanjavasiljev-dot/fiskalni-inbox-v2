@@ -53,7 +53,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const [assignmentEmployee,setAssignmentEmployee]=React.useState("");
   const [assignmentBusy,setAssignmentBusy]=React.useState(false);
   const start=monthStart();
-  const settings=context?.userSettings||{notify_new_receipts:true,notify_new_documents:true,notify_deadlines:true};
+  const settings=context?.userSettings||{notify_new_receipts:false,notify_new_documents:false,notify_deadlines:true};
   const receiptStatus: Map<string,any>=new Map((overview.receiptStatuses||[]).map((s:any)=>[String(s.receipt_id),s]));
   const documentStatus: Map<string,any>=new Map((overview.documentStatuses||[]).map((s:any)=>[String(s.document_id),s]));
   const periodReceipts=(overview.receipts||[]).filter((r:any)=>period==="total"||inMonth(r.sent_to_accountant_at||r.created_at,start));
@@ -69,7 +69,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
   const lastReceiptSync=latestOpened(overview.receiptStatuses||[]);
   const lastDocumentSync=latestOpened(overview.documentStatuses||[]);
   const connectionRequests=context?.incomingConnectionRequests||[];
-  const notificationCount=(settings.notify_new_documents?allUnreadDocs.length:0)+(settings.notify_new_receipts?allUnreadReceipts.length:0)+connectionRequests.length;
+  const notificationCount=connectionRequests.length;
   const orgMap=new Map(organizations.map((o:any)=>[String(o.organization_id),o]));
   const assignableEmployees=(context?.staff||[]).filter((x:any)=>x.office_role==="employee");
 
@@ -195,10 +195,9 @@ export default function AccountantHome({profile,organizations,overview,context}:
     finally{setAssignmentBusy(false);}
   }
 
-  const notificationItems=[
-    ...(settings.notify_new_documents?allUnreadDocs.slice(0,6).map((d:any)=>({kind:"Dokument",id:d.id,org:d.organization_id,title:d.file_name,date:d.sent_at||d.created_at})):[]),
-    ...(settings.notify_new_receipts?allUnreadReceipts.slice(0,6).map((r:any)=>({kind:"Račun",id:r.id,org:r.organization_id,title:r.merchant_name||r.invoice_number||"Fiskalni račun",date:r.sent_to_accountant_at||r.created_at})):[])
-  ].sort((a:any,b:any)=>new Date(b.date).getTime()-new Date(a.date).getTime()).slice(0,10);
+  // Prijem računa/dokumenata je vidljiv kroz radne brojače i prijemne liste,
+  // ne kroz KNJIGO notifikacije. Notifikacioni panel ostaje za zahteve i sistemske događaje.
+  const notificationItems:any[]=[];
 
   const [liveNotificationCount,setLiveNotificationCount]=React.useState(notificationCount);
   const [liveConnectionRequests,setLiveConnectionRequests]=React.useState<any[]>(connectionRequests);
@@ -233,7 +232,7 @@ export default function AccountantHome({profile,organizations,overview,context}:
     <div className="accountant-desktop-layout"><AccountantDesktopMenu isAdmin={Boolean(context?.isAdmin)} username={profile.username||profile.full_name||profile.auth_email||""} notificationCount={liveNotificationCount} onNotificationsClick={()=>setNotificationsOpen(v=>!v)}/><main className="app-main accountant-main">
       <div className="app-head accountant-head-main"><div><span className="pill">{context?.isAdmin?"ADMIN KNJIGOVOĐA":"KNJIGOVOĐA"}</span><h1>Radni pregled</h1><p className="muted">{context?.office?.name&&<><b>{context.office.name}</b> · </>}podrazumevano je prikazan tekući mesec: <b>{currentMonthLabel()}</b>.</p></div><div className="period-switch"><button className={period==="month"?"active":""} onClick={()=>setPeriod("month")}>Tekući mesec</button><button className={period==="total"?"active":""} onClick={()=>setPeriod("total")}>Ukupno</button></div></div>
 
-      {notificationsOpen&&<div className="card notification-panel"><div className="notification-panel-head"><div><Bell size={18}/><b>Notifikacije</b></div><button onClick={()=>setNotificationsOpen(false)}>×</button></div>{liveConnectionRequests.map((r:any)=><div key={`conn-${r.id}`} className="notification-row"><Users size={17}/><div><b>Novi zahtev za povezivanje</b><span>{r.sender_organization?.name||"Firma"}</span></div></div>)}{liveNotificationItems.map((n:any)=>{const org:any=orgMap.get(String(n.org));return <a key={`${n.kind}-${n.id}`} className="notification-row" href={`/app/accountant/clients/${n.org}`}><FileText size={17}/><div><b>{n.kind}: {n.title}</b><span>{org?.name||"Klijent"} · {dt(n.date)}</span></div></a>})}{!liveConnectionRequests.length&&!liveNotificationItems.length&&<div className="notification-empty">Nema novih stavki prema vašim podešavanjima.</div>}</div>}
+      {notificationsOpen&&<div className="card notification-panel"><div className="notification-panel-head"><div><Bell size={18}/><b>Notifikacije</b></div><button onClick={()=>setNotificationsOpen(false)}>×</button></div>{liveConnectionRequests.map((r:any)=><div key={`conn-${r.id}`} className="notification-row"><Users size={17}/><div><b>Novi zahtev za povezivanje</b><span>{r.sender_organization?.name||"Firma"}</span></div></div>)}{liveNotificationItems.map((n:any)=>{const org:any=orgMap.get(String(n.org));return <a key={`${n.kind}-${n.id}`} className="notification-row" href={`/app/accountant/clients/${n.org}`}><FileText size={17}/><div><b>{n.kind}: {n.title}</b><span>{org?.name||"Klijent"} · {dt(n.date)}</span></div></a>})}{!liveConnectionRequests.length&&!liveNotificationItems.length&&<div className="notification-empty">Nema novih zahteva ili sistemskih obaveštenja.</div>}</div>}
 
       {liveConnectionRequests.length>0&&<div className="card company-requests-card connection-request-card"><div className="section-title"><div><span className="pill">NOVI ZAHTEVI</span><h3>Klijenti koji žele povezivanje</h3></div></div><div className="company-request-list">{liveConnectionRequests.map((r:any)=><div key={r.id} className="company-request-row"><div><b>{r.sender_organization?.name||"Firma"}</b><span>Poslala je zahtev putem {r.channel==="sms"?"SMS-a":"emaila"}. Prihvatite da se firma doda u vaše klijente.</span></div><div className="actions"><button className="btn btn-primary" onClick={()=>reviewConnection(r.id,"approve")}>Prihvati</button><button className="btn" onClick={()=>reviewConnection(r.id,"reject")}>Odbij</button></div></div>)}</div></div>}
 

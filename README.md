@@ -1,15 +1,16 @@
-# FiscalBox V5.9.3.8 — aktuelna radna verzija
+# FiscalBox V5.9.4.3 — aktuelna radna verzija
 
-Aktuelna razvojna baza je **V5.9.3.8**.
+Aktuelna razvojna baza je **V5.9.4.3**.
 
-Najnovije izmene:
-- SUPER ADMIN: ulazak i edit svake firme, promena plana, osnovnih podataka i zaposlenih/admina;
-- SUPER ADMIN: edit knjigovodstvenih organizacija i dodela zaposlenih/admina;
-- APR centralni registar: privredna društva + preduzetnici, uz kontakt email kada ga APR izvor vrati;
-- MASTER > Komunikacija: Marketing kampanje sa email porukom i attachment fajlovima.
+Najnovija izmena:
+- KNJIGOVOĐA više ne dobija notifikacije samo zato što je klijent poslao novi fiskalni račun ili fajl/dokument;
+- nema push-a, toast-a ni stavke u KNJIGO notifikacionom panelu za sam prijem;
+- brojači **Novi računi** i **Novi dokumenti** na dashboardu ostaju i prijemni tok radi kao ranije;
+- zahtevi za povezivanje i druge sistemske notifikacije ostaju aktivni;
+- u podešavanjima knjigovođe uklonjene su opcije za notifikacije „Novi računi“ i „Novi dokumenti“, dok podešavanje rokova ostaje.
 
-Obavezna najnovija migracija: `SQL_032_SUPER_ADMIN_EDIT_MARKETING_APR_EMAIL.sql`, posle SQL_031.
+Obavezna najnovija migracija ostaje `SQL_032_SUPER_ADMIN_EDIT_MARKETING_APR_EMAIL.sql`. Za V5.9.4.3 nema novog SQL-a.
 
-Detalji: `README_V5_9_3_8_SUPER_ADMIN_EDIT_MARKETING_APR_PREDUZETNICI.md`.
+Detalji: `README_V5_9_4_3_KNJIGOVODJA_BEZ_NOTIFIKACIJA_PRIJEMA.md`.
 
 BASIC: 1.250 RSD mesečno. PREMIUM: 1.790 RSD mesečno. Knjigovođa ne plaća sopstvenu FiscalBox pretplatu.

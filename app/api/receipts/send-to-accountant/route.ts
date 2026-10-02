@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendPushToAccountantsForClient } from "@/lib/push-delivery";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -35,9 +34,7 @@ export async function POST(request: Request) {
     .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   const count=data?.length||0;
-  if(count>0){
-    const {data:organization}=await admin.from('organizations').select('name').eq('id',org).maybeSingle();
-    await sendPushToAccountantsForClient(admin,org,{title:'Novi fiskalni računi',body:`${organization?.name||'Klijent'} je poslao ${count} ${count===1?'račun':'računa'} za prijem.`,url:'/app',tag:`receipts-${org}`}).catch(()=>{});
-  }
+  // V5.9.4.3: novi fiskalni računi ostaju vidljivi u KNJIGO prijemu i brojačima,
+  // ali se za sam prijem više ne šalju notifikacije / push poruke.
   return NextResponse.json({ ok: true, sent: count, sent_at: sentAt });
 }

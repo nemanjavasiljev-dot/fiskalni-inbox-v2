@@ -125,7 +125,7 @@ export default async function AppPage({searchParams}:{searchParams:Promise<{org?
         assignments=assignmentRows||[];
       }
       const incomingConnectionRequests=await loadIncomingConnections(admin,'accounting',accountingOffice,profile.auth_email||user.email||'');
-      accountantContext={office:accountingOffice,isAdmin,userSettings:userSettings||{notify_new_receipts:true,notify_new_documents:true,notify_deadlines:true},staff,assignments,pendingInvites:pendingInvites||[],incomingConnectionRequests};
+      accountantContext={office:accountingOffice,isAdmin,userSettings:userSettings||{notify_new_receipts:false,notify_new_documents:false,notify_deadlines:true},staff,assignments,pendingInvites:pendingInvites||[],incomingConnectionRequests};
     }
   }
 

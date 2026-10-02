@@ -27,5 +27,5 @@ export default async function AccountantSettingsPage({searchParams}:{searchParam
     const {data:rows}=await supabase.from('accountant_client_assignments').select('employee_user_id,client_organization_id').eq('accounting_organization_id',office.organization_id);
     assignments=rows||[];
   }
-  return <AccountantSettings profile={profile} office={office} isAdmin={isAdmin} initialSettings={settings||{notify_new_receipts:true,notify_new_documents:true,notify_deadlines:true}} staff={staff} clients={clients} assignments={assignments} initialTab={sp.tab||'profile'}/>;
+  return <AccountantSettings profile={profile} office={office} isAdmin={isAdmin} initialSettings={settings||{notify_new_receipts:false,notify_new_documents:false,notify_deadlines:true}} staff={staff} clients={clients} assignments={assignments} initialTab={sp.tab||'profile'}/>;
 }
